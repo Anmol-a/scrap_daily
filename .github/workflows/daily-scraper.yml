@@ -1,0 +1,42 @@
+name: Daily Price Update
+
+on:
+  schedule:
+    - cron: '30 0 * * *'  # 6am IST daily
+  workflow_dispatch:       # allows manual trigger from GitHub UI
+
+jobs:
+  daily-scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360   # 6 hour max
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Install Chrome
+        run: |
+          wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+          echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
+
+      - name: Install Python dependencies
+        run: |
+          pip install selenium undetected-chromedriver supabase python-dotenv requests beautifulsoup4
+
+      - name: Run daily scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          AFFILIATE_TAG: sync8in-21
+        run: |
+          cd Sync8_amazonScrape
+          python3 scraper.py daily
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: scraper-logs
+          path: Sync8_amazonScrape/scraper_*.log
