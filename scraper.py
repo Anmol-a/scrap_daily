@@ -546,7 +546,7 @@ def run_daily_price_update():
     if start_index > 0:
         log.info(f"⚠️  Resuming from product #{start_index + 1} (previous run failed at #{start_index})")
 
-    products = all_products[start_index:]
+    products = all_products[start_index:]   ## can start from any eg products = all_products[1022:] if need to start from 1022 instead of 1
     log.info(f"Total products in DB: {total}")
     log.info(f"Products to process: {len(products)} (starting from #{start_index + 1})")
     log.info("-" * 50)
@@ -556,6 +556,8 @@ def run_daily_price_update():
     updated = 0
     out_of_stock = 0
     errors = 0
+    failed_products = []
+    updated_products = []
 
     for i, p in enumerate(products):
         actual_index = start_index + i + 1
@@ -589,6 +591,13 @@ def run_daily_price_update():
                 out_of_stock += 1
                 save_progress(actual_index)
                 time.sleep(random.uniform(2, 4))
+                failed_products.append({
+                    "index": actual_index,
+                    "name": p["name"],
+                    "asin": asin,
+                    "url": url,
+                    "reason": "out_of_stock"
+                })
                 continue
 
             # Extract price
@@ -657,9 +666,23 @@ def run_daily_price_update():
                 update_price_by_asin(asin, price, rating, review_count)
                 updated += 1
                 log.info(f"  ✅ [{actual_index}/{total}] ₹{price} — {p['name'][:50]}")
+                updated_products.append({
+                    "index": actual_index,
+                    "name": p["name"],
+                    "asin": asin,
+                    "url": url,
+                    "price": price
+                })
             else:
                 log.warning(f"  ⚠️  [{actual_index}/{total}] No price found — {p['name'][:50]}")
                 errors += 1
+                failed_products.append({
+                    "index": actual_index,
+                    "name": p["name"],
+                    "asin": asin,
+                    "url": url,
+                    "reason": "no_price_found"
+                })
 
             # Save progress after every product
             save_progress(actual_index)
@@ -669,6 +692,13 @@ def run_daily_price_update():
             log.error(f"  ❌ [{actual_index}/{total}] FAILED at index {actual_index} — {p['name'][:50]}")
             log.error(f"  ❌ Error: {e}")
             log.error(f"  ❌ Next run will resume from #{actual_index + 1}")
+            failed_products.append({
+                "index": actual_index,
+                "name": p["name"],
+                "asin": asin,
+                "url": url,
+                "reason": str(e)[:100]
+            })
             errors += 1
             save_progress(actual_index)
             time.sleep(random.uniform(3, 6))
@@ -685,6 +715,22 @@ def run_daily_price_update():
     log.info(f"   Out of stock: {out_of_stock}")
     log.info(f"   Errors: {errors}")
     log.info("=" * 50)
+    # Write failed/updated products report
+    Run_logs = "Run_logs/"
+    os.makedirs(Run_logs, exist_ok=True)
+    report_file = Run_logs+f"failed_products_{datetime.now().strftime('%Y%m%d_%H%M')}.json"
+    with open(report_file, "w") as f:
+        json.dump({
+            "summary": {
+                "total": total,
+                "updated": updated,
+                "out_of_stock": out_of_stock,
+                "errors": errors
+            },
+            "failed": failed_products,
+            "updated": updated_products
+        }, f, indent=2)
+    log.info(f"📄 Report saved: {report_file}")
 
 
 

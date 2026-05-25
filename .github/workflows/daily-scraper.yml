@@ -38,4 +38,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: scraper-logs
-          path: scraper_*.log
+          path: |
+            Sync8_amazonScrape/Run_logs/
+            Sync8_amazonScrape/scraper_*.log

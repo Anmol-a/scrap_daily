@@ -1,0 +1,47 @@
+{
+  "summary": {
+    "total": 3115,
+    "updated": 4,
+    "out_of_stock": 1,
+    "errors": 0
+  },
+  "failed": [
+    {
+      "index": 4,
+      "name": "Domo Slate Slp8 T310 Os13 10 1 Inch 4g Tablet With Glass Touch Screen Volte Dual Sim Slots 4gb Ram 64gb Storage Cpu Gps Bluetooth",
+      "asin": "B0CXJ8MYTP",
+      "url": "https://www.amazon.in/dp/B0CXJ8MYTP",
+      "reason": "out_of_stock"
+    }
+  ],
+  "updated": [
+    {
+      "index": 1,
+      "name": "Oneplus 15 12gb 256gb Sand Storm India S First Snapdragon 8 Elite Gen 5 7300mah",
+      "asin": "B0FTRN7L8Q",
+      "url": "https://www.amazon.in/dp/B0FTRN7L8Q",
+      "price": 77999
+    },
+    {
+      "index": 2,
+      "name": "Duracell 38w Fast Car Charger Adapter With Dual Output Quick Charge Type C Pd 20w Qualcomm Certified 3 0 Compatible For iPhone All Smartphones Tablets More",
+      "asin": "B09FFK1PQG",
+      "url": "https://www.amazon.in/dp/B09FFK1PQG",
+      "price": 868
+    },
+    {
+      "index": 3,
+      "name": "Oneplus Nord Buds 3",
+      "asin": "B0DFQ1R3W4",
+      "url": "https://www.amazon.in/dp/B0DFQ1R3W4",
+      "price": 2699
+    },
+    {
+      "index": 5,
+      "name": "Spigen Alignmaster S Tempered Glass Screen Protector Guard For iPhone 17 2 Pack",
+      "asin": "B0G4LLNSCT",
+      "url": "https://www.amazon.in/dp/B0G4LLNSCT",
+      "price": 899
+    }
+  ]
+}

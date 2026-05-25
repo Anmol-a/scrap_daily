@@ -1,0 +1,291 @@
+2026-05-25 19:14:43,645 [INFO] ==================================================
+2026-05-25 19:14:43,645 [INFO] DAILY MODE — Updating prices for existing products
+2026-05-25 19:14:43,645 [INFO] ==================================================
+2026-05-25 19:14:45,792 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id%2Cname%2Camazon_asin&amazon_asin=not.is.null&offset=0&limit=1000 "HTTP/2 200 OK"
+2026-05-25 19:14:45,811 [INFO] Fetched 1000 products so far...
+2026-05-25 19:14:46,191 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id%2Cname%2Camazon_asin&amazon_asin=not.is.null&offset=1000&limit=1000 "HTTP/2 200 OK"
+2026-05-25 19:14:46,210 [INFO] Fetched 2000 products so far...
+2026-05-25 19:14:46,500 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id%2Cname%2Camazon_asin&amazon_asin=not.is.null&offset=2000&limit=1000 "HTTP/2 200 OK"
+2026-05-25 19:14:46,517 [INFO] Fetched 3000 products so far...
+2026-05-25 19:14:46,720 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id%2Cname%2Camazon_asin&amazon_asin=not.is.null&offset=3000&limit=1000 "HTTP/2 200 OK"
+2026-05-25 19:14:46,722 [INFO] Fetched 3115 products so far...
+2026-05-25 19:14:46,723 [INFO] Total fetched from DB: 3115
+2026-05-25 19:14:46,723 [INFO] Total products in DB: 3115
+2026-05-25 19:14:46,723 [INFO] Products to process: 5 (starting from #1)
+2026-05-25 19:14:46,723 [INFO] --------------------------------------------------
+2026-05-25 19:14:46,723 [INFO] Using user agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like ...
+2026-05-25 19:14:53,806 [INFO] patching driver executable /Users/anmolmishra/Library/Application Support/undetected_chromedriver/undetected_chromedriver
+2026-05-25 19:14:56,823 [INFO] [1/3115] Rts Usb C Hard Drive Cable Usb C Type C To Micro B Usb 3 0 C
+2026-05-25 19:15:08,277 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id&amazon_asin=eq.B0BZKWZ6T1 "HTTP/2 200 OK"
+2026-05-25 19:15:08,432 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?id=eq.aabac854-077c-4b88-b7a9-3104e90ec08a "HTTP/2 200 OK"
+2026-05-25 19:15:08,521 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_prices?product_id=eq.aabac854-077c-4b88-b7a9-3104e90ec08a&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:15:08,762 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_reviews?product_id=eq.aabac854-077c-4b88-b7a9-3104e90ec08a&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:15:08,764 [INFO]   ✅ Price updated for 1 row(s) with ASIN B0BZKWZ6T1: ₹248
+2026-05-25 19:15:08,764 [INFO]   ✅ [1/3115] ₹248 — Rts Usb C Hard Drive Cable Usb C Type C To Micro B
+2026-05-25 19:15:13,416 [INFO] [2/3115] Duracell 38w Fast Car Charger Adapter With Dual Output Quick
+2026-05-25 19:15:20,464 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id&amazon_asin=eq.B09FFK1PQG "HTTP/2 200 OK"
+2026-05-25 19:15:20,495 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?id=eq.9e039928-87b8-4aaa-8f28-48c37166ae1e "HTTP/2 200 OK"
+2026-05-25 19:15:20,526 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_prices?product_id=eq.9e039928-87b8-4aaa-8f28-48c37166ae1e&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:15:20,557 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_reviews?product_id=eq.9e039928-87b8-4aaa-8f28-48c37166ae1e&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:15:20,557 [INFO]   ✅ Price updated for 1 row(s) with ASIN B09FFK1PQG: ₹868
+2026-05-25 19:15:20,557 [INFO]   ✅ [2/3115] ₹868 — Duracell 38w Fast Car Charger Adapter With Dual Ou
+2026-05-25 19:15:25,114 [INFO] [3/3115] Oneplus Nord Buds 3
+2026-05-25 19:15:30,633 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id&amazon_asin=eq.B0DFQ1R3W4 "HTTP/2 200 OK"
+2026-05-25 19:15:30,661 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?id=eq.7e6f3ee7-f6fb-47a3-a2da-f84cdd817c82 "HTTP/2 200 OK"
+2026-05-25 19:15:30,689 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_prices?product_id=eq.7e6f3ee7-f6fb-47a3-a2da-f84cdd817c82&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:15:30,721 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_reviews?product_id=eq.7e6f3ee7-f6fb-47a3-a2da-f84cdd817c82&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:15:30,722 [INFO]   ✅ Price updated for 1 row(s) with ASIN B0DFQ1R3W4: ₹2699
+2026-05-25 19:15:30,722 [INFO]   ✅ [3/3115] ₹2699 — Oneplus Nord Buds 3
+2026-05-25 19:15:34,567 [INFO] [4/3115] Domo Slate Slp8 T310 Os13 10 1 Inch 4g Tablet With Glass Tou
+2026-05-25 19:15:41,182 [INFO]   ⚠️  [4/3115] Out of stock: Domo Slate Slp8 T310 Os13 10 1 Inch 4g Tablet With
+2026-05-25 19:15:41,240 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?id=eq.ce42cd15-31c6-4d40-878f-2bb7ec38784f "HTTP/2 200 OK"
+2026-05-25 19:15:43,879 [INFO] [5/3115] Spigen Alignmaster S Tempered Glass Screen Protector Guard F
+2026-05-25 19:15:49,134 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id&amazon_asin=eq.B0G4LLNSCT "HTTP/2 200 OK"
+2026-05-25 19:15:49,166 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?id=eq.248cc682-1ecf-4bd6-a821-4aad1b36431a "HTTP/2 200 OK"
+2026-05-25 19:15:49,195 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_prices?product_id=eq.248cc682-1ecf-4bd6-a821-4aad1b36431a&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:15:49,227 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_reviews?product_id=eq.248cc682-1ecf-4bd6-a821-4aad1b36431a&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:15:49,228 [INFO]   ✅ Price updated for 1 row(s) with ASIN B0G4LLNSCT: ₹899
+2026-05-25 19:15:49,228 [INFO]   ✅ [5/3115] ₹899 — Spigen Alignmaster S Tempered Glass Screen Protect
+2026-05-25 19:15:51,578 [INFO] ==================================================
+2026-05-25 19:15:51,578 [INFO] ✅ Daily update complete
+2026-05-25 19:15:51,578 [INFO]    Total products: 3115
+2026-05-25 19:15:51,578 [INFO]    Processed: 5
+2026-05-25 19:15:51,578 [INFO]    Updated: 4
+2026-05-25 19:15:51,578 [INFO]    Out of stock: 1
+2026-05-25 19:15:51,578 [INFO]    Errors: 0
+2026-05-25 19:15:51,578 [INFO] ==================================================
+2026-05-25 19:19:12,391 [INFO] ==================================================
+2026-05-25 19:19:12,392 [INFO] DAILY MODE — Updating prices for existing products
+2026-05-25 19:19:12,392 [INFO] ==================================================
+2026-05-25 19:19:13,311 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id%2Cname%2Camazon_asin&amazon_asin=not.is.null&offset=0&limit=1000 "HTTP/2 200 OK"
+2026-05-25 19:19:13,324 [INFO] Fetched 1000 products so far...
+2026-05-25 19:19:13,531 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id%2Cname%2Camazon_asin&amazon_asin=not.is.null&offset=1000&limit=1000 "HTTP/2 200 OK"
+2026-05-25 19:19:13,542 [INFO] Fetched 2000 products so far...
+2026-05-25 19:19:13,666 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id%2Cname%2Camazon_asin&amazon_asin=not.is.null&offset=2000&limit=1000 "HTTP/2 200 OK"
+2026-05-25 19:19:13,681 [INFO] Fetched 3000 products so far...
+2026-05-25 19:19:13,792 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id%2Cname%2Camazon_asin&amazon_asin=not.is.null&offset=3000&limit=1000 "HTTP/2 200 OK"
+2026-05-25 19:19:13,795 [INFO] Fetched 3115 products so far...
+2026-05-25 19:19:13,796 [INFO] Total fetched from DB: 3115
+2026-05-25 19:19:13,796 [INFO] Total products in DB: 3115
+2026-05-25 19:19:13,796 [INFO] Products to process: 5 (starting from #1)
+2026-05-25 19:19:13,796 [INFO] --------------------------------------------------
+2026-05-25 19:19:13,796 [INFO] Using user agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)...
+2026-05-25 19:19:18,212 [INFO] patching driver executable /Users/anmolmishra/Library/Application Support/undetected_chromedriver/undetected_chromedriver
+2026-05-25 19:19:20,741 [INFO] [1/3115] Rts Usb C Hard Drive Cable Usb C Type C To Micro B Usb 3 0 C
+2026-05-25 19:19:41,569 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id&amazon_asin=eq.B0BZKWZ6T1 "HTTP/2 200 OK"
+2026-05-25 19:19:41,651 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?id=eq.aabac854-077c-4b88-b7a9-3104e90ec08a "HTTP/2 200 OK"
+2026-05-25 19:19:41,693 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_prices?product_id=eq.aabac854-077c-4b88-b7a9-3104e90ec08a&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:19:41,757 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_reviews?product_id=eq.aabac854-077c-4b88-b7a9-3104e90ec08a&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:19:41,758 [INFO]   ✅ Price updated for 1 row(s) with ASIN B0BZKWZ6T1: ₹248
+2026-05-25 19:19:41,758 [INFO]   ✅ [1/3115] ₹248 — Rts Usb C Hard Drive Cable Usb C Type C To Micro B
+2026-05-25 19:19:45,414 [INFO] [2/3115] Duracell 38w Fast Car Charger Adapter With Dual Output Quick
+2026-05-25 19:19:52,229 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id&amazon_asin=eq.B09FFK1PQG "HTTP/2 200 OK"
+2026-05-25 19:19:52,265 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?id=eq.9e039928-87b8-4aaa-8f28-48c37166ae1e "HTTP/2 200 OK"
+2026-05-25 19:19:52,302 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_prices?product_id=eq.9e039928-87b8-4aaa-8f28-48c37166ae1e&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:19:52,336 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_reviews?product_id=eq.9e039928-87b8-4aaa-8f28-48c37166ae1e&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:19:52,337 [INFO]   ✅ Price updated for 1 row(s) with ASIN B09FFK1PQG: ₹868
+2026-05-25 19:19:52,337 [INFO]   ✅ [2/3115] ₹868 — Duracell 38w Fast Car Charger Adapter With Dual Ou
+2026-05-25 19:19:56,623 [INFO] [3/3115] Oneplus Nord Buds 3
+2026-05-25 19:20:02,811 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id&amazon_asin=eq.B0DFQ1R3W4 "HTTP/2 200 OK"
+2026-05-25 19:20:02,842 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?id=eq.7e6f3ee7-f6fb-47a3-a2da-f84cdd817c82 "HTTP/2 200 OK"
+2026-05-25 19:20:02,872 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_prices?product_id=eq.7e6f3ee7-f6fb-47a3-a2da-f84cdd817c82&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:20:02,901 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_reviews?product_id=eq.7e6f3ee7-f6fb-47a3-a2da-f84cdd817c82&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:20:02,901 [INFO]   ✅ Price updated for 1 row(s) with ASIN B0DFQ1R3W4: ₹2699
+2026-05-25 19:20:02,901 [INFO]   ✅ [3/3115] ₹2699 — Oneplus Nord Buds 3
+2026-05-25 19:20:05,202 [INFO] [4/3115] Domo Slate Slp8 T310 Os13 10 1 Inch 4g Tablet With Glass Tou
+2026-05-25 19:20:11,693 [INFO]   ⚠️  [4/3115] Out of stock: Domo Slate Slp8 T310 Os13 10 1 Inch 4g Tablet With
+2026-05-25 19:20:11,778 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?id=eq.ce42cd15-31c6-4d40-878f-2bb7ec38784f "HTTP/2 200 OK"
+2026-05-25 19:20:14,835 [INFO] [5/3115] Spigen Alignmaster S Tempered Glass Screen Protector Guard F
+2026-05-25 19:20:20,029 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id&amazon_asin=eq.B0G4LLNSCT "HTTP/2 200 OK"
+2026-05-25 19:20:20,060 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?id=eq.248cc682-1ecf-4bd6-a821-4aad1b36431a "HTTP/2 200 OK"
+2026-05-25 19:20:20,086 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_prices?product_id=eq.248cc682-1ecf-4bd6-a821-4aad1b36431a&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:20:20,115 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_reviews?product_id=eq.248cc682-1ecf-4bd6-a821-4aad1b36431a&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:20:20,116 [INFO]   ✅ Price updated for 1 row(s) with ASIN B0G4LLNSCT: ₹899
+2026-05-25 19:20:20,116 [INFO]   ✅ [5/3115] ₹899 — Spigen Alignmaster S Tempered Glass Screen Protect
+2026-05-25 19:20:22,833 [INFO] ==================================================
+2026-05-25 19:20:22,833 [INFO] ✅ Daily update complete
+2026-05-25 19:20:22,833 [INFO]    Total products: 3115
+2026-05-25 19:20:22,833 [INFO]    Processed: 5
+2026-05-25 19:20:22,833 [INFO]    Updated: 4
+2026-05-25 19:20:22,833 [INFO]    Out of stock: 1
+2026-05-25 19:20:22,833 [INFO]    Errors: 0
+2026-05-25 19:20:22,833 [INFO] ==================================================
+2026-05-25 19:23:07,202 [INFO] ==================================================
+2026-05-25 19:23:07,202 [INFO] DAILY MODE — Updating prices for existing products
+2026-05-25 19:23:07,202 [INFO] ==================================================
+2026-05-25 19:23:08,888 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id%2Cname%2Camazon_asin&amazon_asin=not.is.null&offset=0&limit=1000 "HTTP/2 200 OK"
+2026-05-25 19:23:08,902 [INFO] Fetched 1000 products so far...
+2026-05-25 19:23:09,056 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id%2Cname%2Camazon_asin&amazon_asin=not.is.null&offset=1000&limit=1000 "HTTP/2 200 OK"
+2026-05-25 19:23:09,071 [INFO] Fetched 2000 products so far...
+2026-05-25 19:23:09,175 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id%2Cname%2Camazon_asin&amazon_asin=not.is.null&offset=2000&limit=1000 "HTTP/2 200 OK"
+2026-05-25 19:23:09,187 [INFO] Fetched 3000 products so far...
+2026-05-25 19:23:09,265 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id%2Cname%2Camazon_asin&amazon_asin=not.is.null&offset=3000&limit=1000 "HTTP/2 200 OK"
+2026-05-25 19:23:09,266 [INFO] Fetched 3115 products so far...
+2026-05-25 19:23:09,266 [INFO] Total fetched from DB: 3115
+2026-05-25 19:23:09,266 [INFO] Total products in DB: 3115
+2026-05-25 19:23:09,266 [INFO] Products to process: 5 (starting from #1)
+2026-05-25 19:23:09,266 [INFO] --------------------------------------------------
+2026-05-25 19:23:09,266 [INFO] Using user agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)...
+2026-05-25 19:23:09,964 [INFO] patching driver executable /Users/anmolmishra/Library/Application Support/undetected_chromedriver/undetected_chromedriver
+2026-05-25 19:23:12,453 [INFO] [1/3115] Rts Usb C Hard Drive Cable Usb C Type C To Micro B Usb 3 0 C
+2026-05-25 19:23:18,446 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id&amazon_asin=eq.B0BZKWZ6T1 "HTTP/2 200 OK"
+2026-05-25 19:23:18,523 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?id=eq.aabac854-077c-4b88-b7a9-3104e90ec08a "HTTP/2 200 OK"
+2026-05-25 19:23:18,585 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_prices?product_id=eq.aabac854-077c-4b88-b7a9-3104e90ec08a&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:23:18,656 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_reviews?product_id=eq.aabac854-077c-4b88-b7a9-3104e90ec08a&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:23:18,656 [INFO]   ✅ Price updated for 1 row(s) with ASIN B0BZKWZ6T1: ₹248
+2026-05-25 19:23:18,656 [INFO]   ✅ [1/3115] ₹248 — Rts Usb C Hard Drive Cable Usb C Type C To Micro B
+2026-05-25 19:23:22,813 [INFO] [2/3115] Oneplus 15 12gb 256gb Sand Storm India S First Snapdragon 8 
+2026-05-25 19:23:29,983 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id&amazon_asin=eq.B0FTRN7L8Q "HTTP/2 200 OK"
+2026-05-25 19:23:30,018 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?id=eq.4084a789-f302-4dcd-9d56-dbb0395ab90d "HTTP/2 200 OK"
+2026-05-25 19:23:30,041 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_prices?product_id=eq.4084a789-f302-4dcd-9d56-dbb0395ab90d&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:23:30,069 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_reviews?product_id=eq.4084a789-f302-4dcd-9d56-dbb0395ab90d&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:23:30,095 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?id=eq.337eeec8-a95c-4eb8-821c-ea9238e5ba95 "HTTP/2 200 OK"
+2026-05-25 19:23:30,120 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_prices?product_id=eq.337eeec8-a95c-4eb8-821c-ea9238e5ba95&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:23:30,145 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_reviews?product_id=eq.337eeec8-a95c-4eb8-821c-ea9238e5ba95&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:23:30,145 [INFO]   ✅ Price updated for 2 row(s) with ASIN B0FTRN7L8Q: ₹77999
+2026-05-25 19:23:30,145 [INFO]   ✅ [2/3115] ₹77999 — Oneplus 15 12gb 256gb Sand Storm India S First Sna
+2026-05-25 19:23:32,166 [INFO] [3/3115] Duracell 38w Fast Car Charger Adapter With Dual Output Quick
+2026-05-25 19:23:38,106 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id&amazon_asin=eq.B09FFK1PQG "HTTP/2 200 OK"
+2026-05-25 19:23:38,158 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?id=eq.9e039928-87b8-4aaa-8f28-48c37166ae1e "HTTP/2 200 OK"
+2026-05-25 19:23:38,183 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_prices?product_id=eq.9e039928-87b8-4aaa-8f28-48c37166ae1e&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:23:38,210 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_reviews?product_id=eq.9e039928-87b8-4aaa-8f28-48c37166ae1e&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:23:38,210 [INFO]   ✅ Price updated for 1 row(s) with ASIN B09FFK1PQG: ₹868
+2026-05-25 19:23:38,210 [INFO]   ✅ [3/3115] ₹868 — Duracell 38w Fast Car Charger Adapter With Dual Ou
+2026-05-25 19:23:42,836 [INFO] [4/3115] Oneplus Nord Buds 3
+2026-05-25 19:23:48,427 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id&amazon_asin=eq.B0DFQ1R3W4 "HTTP/2 200 OK"
+2026-05-25 19:23:48,460 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?id=eq.7e6f3ee7-f6fb-47a3-a2da-f84cdd817c82 "HTTP/2 200 OK"
+2026-05-25 19:23:48,489 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_prices?product_id=eq.7e6f3ee7-f6fb-47a3-a2da-f84cdd817c82&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:23:48,513 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_reviews?product_id=eq.7e6f3ee7-f6fb-47a3-a2da-f84cdd817c82&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:23:48,514 [INFO]   ✅ Price updated for 1 row(s) with ASIN B0DFQ1R3W4: ₹2699
+2026-05-25 19:23:48,514 [INFO]   ✅ [4/3115] ₹2699 — Oneplus Nord Buds 3
+2026-05-25 19:23:51,192 [INFO] [5/3115] Domo Slate Slp8 T310 Os13 10 1 Inch 4g Tablet With Glass Tou
+2026-05-25 19:23:57,403 [INFO]   ⚠️  [5/3115] Out of stock: Domo Slate Slp8 T310 Os13 10 1 Inch 4g Tablet With
+2026-05-25 19:23:57,498 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?id=eq.ce42cd15-31c6-4d40-878f-2bb7ec38784f "HTTP/2 200 OK"
+2026-05-25 19:24:01,042 [INFO] ==================================================
+2026-05-25 19:24:01,042 [INFO] ✅ Daily update complete
+2026-05-25 19:24:01,042 [INFO]    Total products: 3115
+2026-05-25 19:24:01,042 [INFO]    Processed: 5
+2026-05-25 19:24:01,042 [INFO]    Updated: 4
+2026-05-25 19:24:01,042 [INFO]    Out of stock: 1
+2026-05-25 19:24:01,042 [INFO]    Errors: 0
+2026-05-25 19:24:01,042 [INFO] ==================================================
+2026-05-25 19:24:01,043 [INFO] 📄 Report saved: failed_products_20260525_1924.json
+2026-05-25 19:25:33,355 [INFO] ==================================================
+2026-05-25 19:25:33,355 [INFO] DAILY MODE — Updating prices for existing products
+2026-05-25 19:25:33,355 [INFO] ==================================================
+2026-05-25 19:25:33,883 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id%2Cname%2Camazon_asin&amazon_asin=not.is.null&offset=0&limit=1000 "HTTP/2 200 OK"
+2026-05-25 19:25:33,902 [INFO] Fetched 1000 products so far...
+2026-05-25 19:25:33,942 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id%2Cname%2Camazon_asin&amazon_asin=not.is.null&offset=1000&limit=1000 "HTTP/2 200 OK"
+2026-05-25 19:25:33,954 [INFO] Fetched 2000 products so far...
+2026-05-25 19:25:33,993 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id%2Cname%2Camazon_asin&amazon_asin=not.is.null&offset=2000&limit=1000 "HTTP/2 200 OK"
+2026-05-25 19:25:34,000 [INFO] Fetched 3000 products so far...
+2026-05-25 19:25:34,034 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id%2Cname%2Camazon_asin&amazon_asin=not.is.null&offset=3000&limit=1000 "HTTP/2 200 OK"
+2026-05-25 19:25:34,035 [INFO] Fetched 3115 products so far...
+2026-05-25 19:25:34,035 [INFO] Total fetched from DB: 3115
+2026-05-25 19:25:34,035 [INFO] Total products in DB: 3115
+2026-05-25 19:25:34,035 [INFO] Products to process: 5 (starting from #1)
+2026-05-25 19:25:34,035 [INFO] --------------------------------------------------
+2026-05-25 19:25:34,035 [INFO] Using user agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)...
+2026-05-25 19:25:36,481 [INFO] patching driver executable /Users/anmolmishra/Library/Application Support/undetected_chromedriver/undetected_chromedriver
+2026-05-25 19:25:38,981 [INFO] [1/3115] Oneplus 15 12gb 256gb Sand Storm India S First Snapdragon 8 
+2026-05-25 19:25:57,200 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id&amazon_asin=eq.B0FTRN7L8Q "HTTP/2 200 OK"
+2026-05-25 19:25:57,237 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?id=eq.4084a789-f302-4dcd-9d56-dbb0395ab90d "HTTP/2 200 OK"
+2026-05-25 19:25:57,269 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_prices?product_id=eq.4084a789-f302-4dcd-9d56-dbb0395ab90d&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:25:57,306 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_reviews?product_id=eq.4084a789-f302-4dcd-9d56-dbb0395ab90d&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:25:57,338 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?id=eq.337eeec8-a95c-4eb8-821c-ea9238e5ba95 "HTTP/2 200 OK"
+2026-05-25 19:25:57,367 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_prices?product_id=eq.337eeec8-a95c-4eb8-821c-ea9238e5ba95&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:25:57,398 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_reviews?product_id=eq.337eeec8-a95c-4eb8-821c-ea9238e5ba95&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:25:57,398 [INFO]   ✅ Price updated for 2 row(s) with ASIN B0FTRN7L8Q: ₹77999
+2026-05-25 19:25:57,398 [INFO]   ✅ [1/3115] ₹77999 — Oneplus 15 12gb 256gb Sand Storm India S First Sna
+2026-05-25 19:26:02,319 [INFO] [2/3115] Duracell 38w Fast Car Charger Adapter With Dual Output Quick
+2026-05-25 19:26:09,311 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id&amazon_asin=eq.B09FFK1PQG "HTTP/2 200 OK"
+2026-05-25 19:26:09,341 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?id=eq.9e039928-87b8-4aaa-8f28-48c37166ae1e "HTTP/2 200 OK"
+2026-05-25 19:26:09,366 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_prices?product_id=eq.9e039928-87b8-4aaa-8f28-48c37166ae1e&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:26:09,391 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_reviews?product_id=eq.9e039928-87b8-4aaa-8f28-48c37166ae1e&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:26:09,392 [INFO]   ✅ Price updated for 1 row(s) with ASIN B09FFK1PQG: ₹868
+2026-05-25 19:26:09,392 [INFO]   ✅ [2/3115] ₹868 — Duracell 38w Fast Car Charger Adapter With Dual Ou
+2026-05-25 19:26:12,097 [INFO] [3/3115] Oneplus Nord Buds 3
+2026-05-25 19:26:19,052 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id&amazon_asin=eq.B0DFQ1R3W4 "HTTP/2 200 OK"
+2026-05-25 19:26:19,086 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?id=eq.7e6f3ee7-f6fb-47a3-a2da-f84cdd817c82 "HTTP/2 200 OK"
+2026-05-25 19:26:19,115 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_prices?product_id=eq.7e6f3ee7-f6fb-47a3-a2da-f84cdd817c82&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:26:19,143 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_reviews?product_id=eq.7e6f3ee7-f6fb-47a3-a2da-f84cdd817c82&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:26:19,145 [INFO]   ✅ Price updated for 1 row(s) with ASIN B0DFQ1R3W4: ₹2699
+2026-05-25 19:26:19,145 [INFO]   ✅ [3/3115] ₹2699 — Oneplus Nord Buds 3
+2026-05-25 19:26:21,662 [INFO] [4/3115] Domo Slate Slp8 T310 Os13 10 1 Inch 4g Tablet With Glass Tou
+2026-05-25 19:26:25,602 [INFO]   ⚠️  [4/3115] Out of stock: Domo Slate Slp8 T310 Os13 10 1 Inch 4g Tablet With
+2026-05-25 19:26:26,390 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?id=eq.ce42cd15-31c6-4d40-878f-2bb7ec38784f "HTTP/2 200 OK"
+2026-05-25 19:26:30,117 [INFO] [5/3115] Spigen Alignmaster S Tempered Glass Screen Protector Guard F
+2026-05-25 19:26:36,952 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id&amazon_asin=eq.B0G4LLNSCT "HTTP/2 200 OK"
+2026-05-25 19:26:36,990 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?id=eq.248cc682-1ecf-4bd6-a821-4aad1b36431a "HTTP/2 200 OK"
+2026-05-25 19:26:37,028 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_prices?product_id=eq.248cc682-1ecf-4bd6-a821-4aad1b36431a&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:26:37,064 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_reviews?product_id=eq.248cc682-1ecf-4bd6-a821-4aad1b36431a&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:26:37,064 [INFO]   ✅ Price updated for 1 row(s) with ASIN B0G4LLNSCT: ₹899
+2026-05-25 19:26:37,064 [INFO]   ✅ [5/3115] ₹899 — Spigen Alignmaster S Tempered Glass Screen Protect
+2026-05-25 19:26:40,119 [INFO] ==================================================
+2026-05-25 19:26:40,119 [INFO] ✅ Daily update complete
+2026-05-25 19:26:40,119 [INFO]    Total products: 3115
+2026-05-25 19:26:40,119 [INFO]    Processed: 5
+2026-05-25 19:26:40,119 [INFO]    Updated: 4
+2026-05-25 19:26:40,119 [INFO]    Out of stock: 1
+2026-05-25 19:26:40,119 [INFO]    Errors: 0
+2026-05-25 19:26:40,119 [INFO] ==================================================
+2026-05-25 19:28:07,696 [INFO] ==================================================
+2026-05-25 19:28:07,696 [INFO] DAILY MODE — Updating prices for existing products
+2026-05-25 19:28:07,696 [INFO] ==================================================
+2026-05-25 19:28:08,132 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id%2Cname%2Camazon_asin&amazon_asin=not.is.null&offset=0&limit=1000 "HTTP/2 200 OK"
+2026-05-25 19:28:08,147 [INFO] Fetched 1000 products so far...
+2026-05-25 19:28:08,185 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id%2Cname%2Camazon_asin&amazon_asin=not.is.null&offset=1000&limit=1000 "HTTP/2 200 OK"
+2026-05-25 19:28:08,194 [INFO] Fetched 2000 products so far...
+2026-05-25 19:28:08,241 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id%2Cname%2Camazon_asin&amazon_asin=not.is.null&offset=2000&limit=1000 "HTTP/2 200 OK"
+2026-05-25 19:28:08,247 [INFO] Fetched 3000 products so far...
+2026-05-25 19:28:08,277 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id%2Cname%2Camazon_asin&amazon_asin=not.is.null&offset=3000&limit=1000 "HTTP/2 200 OK"
+2026-05-25 19:28:08,278 [INFO] Fetched 3115 products so far...
+2026-05-25 19:28:08,278 [INFO] Total fetched from DB: 3115
+2026-05-25 19:28:08,278 [INFO] Total products in DB: 3115
+2026-05-25 19:28:08,278 [INFO] Products to process: 5 (starting from #1)
+2026-05-25 19:28:08,278 [INFO] --------------------------------------------------
+2026-05-25 19:28:08,278 [INFO] Using user agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)...
+2026-05-25 19:28:09,389 [INFO] patching driver executable /Users/anmolmishra/Library/Application Support/undetected_chromedriver/undetected_chromedriver
+2026-05-25 19:28:11,886 [INFO] [1/3115] Oneplus 15 12gb 256gb Sand Storm India S First Snapdragon 8 
+2026-05-25 19:28:25,203 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id&amazon_asin=eq.B0FTRN7L8Q "HTTP/2 200 OK"
+2026-05-25 19:28:25,266 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?id=eq.4084a789-f302-4dcd-9d56-dbb0395ab90d "HTTP/2 200 OK"
+2026-05-25 19:28:25,316 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_prices?product_id=eq.4084a789-f302-4dcd-9d56-dbb0395ab90d&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:28:25,352 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_reviews?product_id=eq.4084a789-f302-4dcd-9d56-dbb0395ab90d&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:28:25,388 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?id=eq.337eeec8-a95c-4eb8-821c-ea9238e5ba95 "HTTP/2 200 OK"
+2026-05-25 19:28:25,429 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_prices?product_id=eq.337eeec8-a95c-4eb8-821c-ea9238e5ba95&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:28:25,459 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_reviews?product_id=eq.337eeec8-a95c-4eb8-821c-ea9238e5ba95&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:28:25,460 [INFO]   ✅ Price updated for 2 row(s) with ASIN B0FTRN7L8Q: ₹77999
+2026-05-25 19:28:25,460 [INFO]   ✅ [1/3115] ₹77999 — Oneplus 15 12gb 256gb Sand Storm India S First Sna
+2026-05-25 19:28:29,610 [INFO] [2/3115] Duracell 38w Fast Car Charger Adapter With Dual Output Quick
+2026-05-25 19:28:35,472 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id&amazon_asin=eq.B09FFK1PQG "HTTP/2 200 OK"
+2026-05-25 19:28:35,502 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?id=eq.9e039928-87b8-4aaa-8f28-48c37166ae1e "HTTP/2 200 OK"
+2026-05-25 19:28:35,534 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_prices?product_id=eq.9e039928-87b8-4aaa-8f28-48c37166ae1e&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:28:35,570 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_reviews?product_id=eq.9e039928-87b8-4aaa-8f28-48c37166ae1e&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:28:35,570 [INFO]   ✅ Price updated for 1 row(s) with ASIN B09FFK1PQG: ₹868
+2026-05-25 19:28:35,570 [INFO]   ✅ [2/3115] ₹868 — Duracell 38w Fast Car Charger Adapter With Dual Ou
+2026-05-25 19:28:39,190 [INFO] [3/3115] Oneplus Nord Buds 3
+2026-05-25 19:28:46,422 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id&amazon_asin=eq.B0DFQ1R3W4 "HTTP/2 200 OK"
+2026-05-25 19:28:46,456 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?id=eq.7e6f3ee7-f6fb-47a3-a2da-f84cdd817c82 "HTTP/2 200 OK"
+2026-05-25 19:28:46,488 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_prices?product_id=eq.7e6f3ee7-f6fb-47a3-a2da-f84cdd817c82&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:28:46,519 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_reviews?product_id=eq.7e6f3ee7-f6fb-47a3-a2da-f84cdd817c82&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:28:46,520 [INFO]   ✅ Price updated for 1 row(s) with ASIN B0DFQ1R3W4: ₹2699
+2026-05-25 19:28:46,520 [INFO]   ✅ [3/3115] ₹2699 — Oneplus Nord Buds 3
+2026-05-25 19:28:51,027 [INFO] [4/3115] Domo Slate Slp8 T310 Os13 10 1 Inch 4g Tablet With Glass Tou
+2026-05-25 19:28:56,931 [INFO]   ⚠️  [4/3115] Out of stock: Domo Slate Slp8 T310 Os13 10 1 Inch 4g Tablet With
+2026-05-25 19:28:57,000 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?id=eq.ce42cd15-31c6-4d40-878f-2bb7ec38784f "HTTP/2 200 OK"
+2026-05-25 19:29:00,154 [INFO] [5/3115] Spigen Alignmaster S Tempered Glass Screen Protector Guard F
+2026-05-25 19:29:06,050 [INFO] HTTP Request: GET https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?select=id&amazon_asin=eq.B0G4LLNSCT "HTTP/2 200 OK"
+2026-05-25 19:29:06,082 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/products?id=eq.248cc682-1ecf-4bd6-a821-4aad1b36431a "HTTP/2 200 OK"
+2026-05-25 19:29:06,111 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_prices?product_id=eq.248cc682-1ecf-4bd6-a821-4aad1b36431a&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:29:06,140 [INFO] HTTP Request: PATCH https://xjwyfyiuucbyrljemyma.supabase.co/rest/v1/product_reviews?product_id=eq.248cc682-1ecf-4bd6-a821-4aad1b36431a&platform=eq.amazon "HTTP/2 200 OK"
+2026-05-25 19:29:06,140 [INFO]   ✅ Price updated for 1 row(s) with ASIN B0G4LLNSCT: ₹899
+2026-05-25 19:29:06,140 [INFO]   ✅ [5/3115] ₹899 — Spigen Alignmaster S Tempered Glass Screen Protect
+2026-05-25 19:29:10,859 [INFO] ==================================================
+2026-05-25 19:29:10,859 [INFO] ✅ Daily update complete
+2026-05-25 19:29:10,859 [INFO]    Total products: 3115
+2026-05-25 19:29:10,859 [INFO]    Processed: 5
+2026-05-25 19:29:10,859 [INFO]    Updated: 4
+2026-05-25 19:29:10,859 [INFO]    Out of stock: 1
+2026-05-25 19:29:10,859 [INFO]    Errors: 0
+2026-05-25 19:29:10,859 [INFO] ==================================================
+2026-05-25 19:29:10,860 [INFO] 📄 Report saved: Run_logs/failed_products_20260525_1929.json

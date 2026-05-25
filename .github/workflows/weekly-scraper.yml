@@ -31,12 +31,13 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           AFFILIATE_TAG: sync8in-21
         run: |
-          cd Sync8_amazonScrape
           python3 scraper.py weekly
 
       - name: Upload logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: weekly-scraper-logs
-          path: Sync8_amazonScrape/scraper_*.log
+          name: scraper-logs
+          path: |
+            Sync8_amazonScrape/Run_logs/
+            Sync8_amazonScrape/scraper_*.log
