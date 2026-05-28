@@ -294,7 +294,7 @@ def scrape_product_page(driver, wait, url):
             return None
 
         try:
-                brand = driver.find_element(By.ID, "bylineInfo").text
+            brand = driver.find_element(By.ID, "bylineInfo").text
             brand = brand.replace("Visit the ", "").replace(" Store", "").replace("Brand: ", "").strip()
             data["brand"] = brand
         except:
