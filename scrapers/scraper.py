@@ -120,7 +120,7 @@ def create_driver():
     options.add_argument("--disable-gpu")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--window-size=1920,1080")
-    options.add_argument("--headless=new")
+    options.add_argument("--headless")
 
     ua = random.choice(USER_AGENTS)
     options.add_argument(f"--user-agent={ua}")
@@ -283,7 +283,7 @@ def scrape_product_page(driver, wait, url):
 
         try:
             title = wait.until(
-                EC.presence_of_element_located((By.ID, "productTitle"))
+                EC.presence_of_element_located((By.XPATH, "//span[@id='productTitle']"))
             ).text.strip()
             data["name"] = title
         except:
@@ -294,7 +294,7 @@ def scrape_product_page(driver, wait, url):
             return None
 
         try:
-            brand = driver.find_element(By.ID, "bylineInfo").text
+                brand = driver.find_element(By.ID, "bylineInfo").text
             brand = brand.replace("Visit the ", "").replace(" Store", "").replace("Brand: ", "").strip()
             data["brand"] = brand
         except:
@@ -526,6 +526,10 @@ def run_daily_price_update():
         try:
             driver.get(url)
             time.sleep(random.uniform(2, 5))
+
+            # TEMP DEBUG — remove after
+            page_src = driver.page_source[:2000]
+            log.info(f"PAGE SOURCE SNIPPET: {page_src}")
 
             # Check if session is alive — restart if not
             try:
