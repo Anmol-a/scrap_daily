@@ -1,2 +1,23 @@
+# Environment
 .env
-.env.local
+
+# Logs (runtime generated)
+logs/
+*.log
+
+# Progress files
+scraper_progress.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Data exports (not needed in repo)
+*.json
+!data/*.json
+
+# OS
+.DS_Store
+Thumbs.db

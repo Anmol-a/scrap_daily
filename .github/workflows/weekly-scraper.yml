@@ -2,17 +2,17 @@ name: Weekly New Products
 
 on:
   schedule:
-    - cron: '30 20 * * 0'  # 2am IST every Sunday
+    - cron: '30 20 * * 0'  # 2:00 AM IST every Sunday
   workflow_dispatch:
 
 jobs:
   weekly-scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 480   # 8 hour max
+    timeout-minutes: 480
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install Chrome
         run: |
@@ -31,13 +31,11 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           AFFILIATE_TAG: sync8in-21
         run: |
-          python3 scraper.py weekly
+          python3 scrapers/scraper.py weekly
 
       - name: Upload logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: scraper-logs
-          path: |
-            Sync8_amazonScrape/Run_logs/
-            Sync8_amazonScrape/scraper_*.log
+          name: weekly-scraper-logs-${{ github.run_number }}
+          path: logs/
