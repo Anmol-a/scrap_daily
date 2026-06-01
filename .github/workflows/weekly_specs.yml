@@ -14,6 +14,13 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
+      - name: Install Chrome
+        run: |
+          wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+          echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -21,7 +28,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install python-dotenv supabase requests beautifulsoup4
+          pip install python-dotenv supabase requests beautifulsoup4 undetected-chromedriver selenium
 
       - name: Run GSMArena enrichment
         env:

@@ -6,19 +6,18 @@ import logging
 import random
 from datetime import datetime
 from dotenv import load_dotenv
-import requests
 from bs4 import BeautifulSoup
+import undetected_chromedriver as uc
 from supabase import create_client
 
 # ==============================
-# SETUP — matches scraper.py
+# SETUP
 # ==============================
 
 load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 logging.basicConfig(
@@ -31,67 +30,70 @@ log = logging.getLogger(__name__)
 # CONFIG
 # ==============================
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                  "AppleWebKit/537.36 (KHTML, like Gecko) "
-                  "Chrome/124.0.0.0 Safari/537.36",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-}
-
 SUPPORTED_CATEGORIES = {"mobiles", "tablets", "smartphones"}
 MIN_SPECS_THRESHOLD = 10
+INDEX_CACHE_PATH = "data/gsmarena_index.json"
 
-# Products that will never be on GSMArena — skip immediately
 SKIP_KEYWORDS = [
     "tablet 100 gm", "gomutra", "haritaki", "ayurvedic", "vigogem",
     "psorlyn", "manasamitra", "applecare", "protect with apple",
     "keyboard case", "parental control", "screen guard", "smart flip cover",
     "earbuds combo", "shieldbuds", "tws", "microsoft surface laptop",
-    "lion gomutra", "dr vasishth", "vyas vigogem",
 ]
 
-def should_skip(name: str) -> bool:
-    name_lower = name.lower()
-    return any(kw in name_lower for kw in SKIP_KEYWORDS)
-
-
 # ==============================
-# INDEX — download once, match locally
+# DRIVER
 # ==============================
 
-_gsmarena_index = None  # cached after first load
+def create_driver():
+    options = uc.ChromeOptions()
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--window-size=1920,1080")
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    # headless=new for GitHub Actions; comment out for local runs
+    options.add_argument("--headless=new")
+    driver = uc.Chrome(version_main=148, options=options, use_subprocess=True)
+    return driver
 
-def load_gsmarena_index() -> list[dict]:
-    """
-    Download GSMArena's quicksearch JSON once and build a searchable index.
+# ==============================
+# INDEX
+# ==============================
 
-    Each entry in the index:
-      {
-        "brand": "Samsung",
-        "name": "Galaxy S24",
-        "keywords": "5G Notch PHC sgs24 galaxys24",
-        "url": "https://www.gsmarena.com/samsung_galaxy_s24-12773.php",
-        "search_text": "samsung galaxy s24 5g notch phc sgs24 galaxys24"  ← for matching
-      }
-    """
+_gsmarena_index = None
+
+def load_gsmarena_index() -> list:
     global _gsmarena_index
     if _gsmarena_index is not None:
         return _gsmarena_index
 
-    log.info("Downloading GSMArena device index...")
-    res = requests.get(
-        "https://www.gsmarena.com/quicksearch-8047.jpg",
-        headers=HEADERS,
-        timeout=15
-    )
-    res.raise_for_status()
-    data = json.loads(res.text)
+    # Load from local cache if available
+    if os.path.exists(INDEX_CACHE_PATH):
+        with open(INDEX_CACHE_PATH, "r") as f:
+            raw = f.read().strip()
+        if raw.startswith("<"):
+            log.warning("Cached index is HTML (rate limit page) — deleting and retrying later")
+            os.remove(INDEX_CACHE_PATH)
+            return []
+        log.info("Loading GSMArena index from local cache...")
+        data = json.loads(raw)
+    else:
+        log.info("Downloading GSMArena device index...")
+        import urllib.request
+        req = urllib.request.Request(
+            "https://www.gsmarena.com/quicksearch-8047.jpg",
+            headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"}
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        os.makedirs("data", exist_ok=True)
+        with open(INDEX_CACHE_PATH, "w") as f:
+            json.dump(data, f)
+        log.info(f"Index cached to {INDEX_CACHE_PATH}")
 
-    # data[0] = {brand_id: brand_name}
-    # data[1] = [[brand_id, device_id, device_name, keywords, img, alt_name], ...]
-    brands = data[0]   # {"9": "Samsung", "48": "Apple", ...}
-    devices = data[1]  # [[9, 12773, "Galaxy S24", "5G Notch PHC sgs24", ...], ...]
+    brands = data[0]
+    devices = data[1]
 
     index = []
     for device in devices:
@@ -99,32 +101,22 @@ def load_gsmarena_index() -> list[dict]:
         device_id = device[1]
         device_name = device[2]
         keywords = device[3] if len(device) > 3 else ""
-        alt_name = device[5] if len(device) > 5 else ""
-
-        brand_name = brands.get(brand_id, "")
         img_file = device[4] if len(device) > 4 else ""
+        alt_name = device[5] if len(device) > 5 else ""
+        brand_name = brands.get(brand_id, "")
 
-        # Derive URL slug from the image filename, which matches GSMArena's URL pattern
-        # e.g. "samsung-galaxy-s24-5g-sm-s921.jpg" → "samsung-galaxy-s24-5g-sm-s921"
-        # Fall back to building from brand+name with hyphens
         if img_file and img_file.endswith(".jpg"):
-            slug = img_file[:-4]  # strip .jpg
+            slug = img_file[:-4]
         else:
-            slug = f"{brand_name} {device_name}".lower()
-            slug = re.sub(r"[^a-z0-9]+", "-", slug).strip("-")
+            slug = re.sub(r"[^a-z0-9]+", "-", f"{brand_name} {device_name}".lower()).strip("-")
 
         url = f"https://www.gsmarena.com/{slug}-{device_id}.php"
-
-        # search_text combines everything for fuzzy matching
         search_text = f"{brand_name} {device_name} {alt_name} {keywords}".lower()
 
         index.append({
             "brand": brand_name,
             "name": device_name,
-            "alt_name": alt_name,
-            "keywords": keywords,
             "url": url,
-            "device_id": device_id,
             "search_text": search_text,
         })
 
@@ -133,73 +125,72 @@ def load_gsmarena_index() -> list[dict]:
     return index
 
 
-def clean_for_match(name: str) -> str:
+def extract_model_from_slug(slug: str) -> str:
     """
-    Strip Amazon noise to get clean brand + model tokens for matching.
-    Returns lowercase string of key tokens.
+    Extract clean brand+model from slug by stopping at the first spec token.
+    e.g. 'redmi-a4-5g-global-debut-sd-4s...' → 'redmi a4 5g'
     """
-    # Remove bracketed content
+    tokens = slug.split("-")
+    model_tokens = []
+    stop_patterns = re.compile(
+        r'^(\d+gb|\d+tb|\d+mb|\d+mp|\d+mah|\d+hz|\d+w|\d+fps|'
+        r'\d+x\d+|\d{4}mah|black|white|blue|green|grey|gray|gold|silver|'
+        r'purple|pink|red|yellow|sand|dusk|midnight|storm|shadow|cool|'
+        r'royal|royale|pearl|titan|phantom|forest|ocean|cosmic|'
+        r'india|global|segment|debut|battery|display|camera|charging|'
+        r'processor|largest|slimmest|curved|massive|long|lasting|'
+        r'built|privacy|assist|creative|studio|personalised|game|'
+        r'changing|triple|dolby|vision|center|stage|front|best|ever|'
+        r'fusion|promotion|any|iphone|charger|box|ai|smart)$',
+        re.IGNORECASE
+    )
+    for token in tokens:
+        if stop_patterns.match(token):
+            break
+        # Stop at standalone numbers (RAM/storage like 12gb already caught, but plain "256" etc)
+        if re.match(r'^\d+$', token) and len(model_tokens) >= 2:
+            break
+        model_tokens.append(token)
+
+    return " ".join(model_tokens).lower().strip()
+
+
+def clean_for_match(name: str, slug: str = "") -> str:
+    """Use slug if available for cleaner model extraction, else fall back to name cleaning."""
+    if slug:
+        return extract_model_from_slug(slug)
+
+    # Fallback: clean name directly
     name = re.sub(r"\(.*?\)", "", name)
-
-    # Fix Lenovo Yoga Tab word order
     name = re.sub(r"lenovo\s+tab\s+yoga", "lenovo yoga tab", name, flags=re.IGNORECASE)
-
-    # Strip connectivity
-    name = re.sub(r"\b(5g|4g|lte|volte|wifi|wi-fi)\b", "", name, flags=re.IGNORECASE)
-
-    # Strip display jargon
+    name = re.sub(r"\b(5g|4g|lte|volte|wifi|wi-fi|wi|fi)\b", "", name, flags=re.IGNORECASE)
+    name = re.sub(r"\b(ultra retina|liquid retina|retina xdr|retina|amoled|samoled|dynamic amoled|oled|poled|ltps|tft lcd|ips lcd|lcd|fhd|2k|3k|xdr|2x|5k|8k|eyecomfort)\b", "", name, flags=re.IGNORECASE)
+    name = re.sub(r"\b(\d+\s*gb|\d+\s*tb|\d+\s*mb|\d+\s*mp|\d+\s*mah|\d+\s*hz|\d+\s*inch|\d+\.\d+\s*cm|\d+\.\d+\s*in|\d+fps)\b", "", name, flags=re.IGNORECASE)
+    name = re.sub(r"\b(snapdragon|mediatek|helio|dimensity|exynos|bionic|a13|a14|a15|a16|a17|a18|m1|m2|m3|m4|gen\s*\d|elite|d8400|d7300|g99)\b", "", name, flags=re.IGNORECASE)
     name = re.sub(
-        r"\b(ultra retina|liquid retina|retina xdr|retina|amoled|samoled|"
-        r"dynamic amoled|oled|poled|ltps|tft lcd|ips lcd|lcd|fhd|2k|3k|xdr)\b",
+        r"\b(with|including|bundle|pack|set|renewed|refurbished|unlocked|dual sim|single sim|"
+        r"ram|rom|storage|expandable|segment|largest|global debut|gaming|starfrost|storm grey|"
+        r"slate black|graphite|silver|gold|blue|black|white|green|purple|red|yellow|pink|"
+        r"bgmi|fps|curved|3d|combo|multicolour|chip|dual|tablet|rate|refresh|resolution|"
+        r"android|calling|additional|exchange|offers|cost|emi|charger|speakers|speaker|"
+        r"keyboard|screen|processor|octa|core|body|metallic|platinum|grey|luna|flash|"
+        r"cam|rear|atmos|dolby|quad|security|kaspersky|standard|mobile|device|year|jbl|"
+        r"smartchoice|original|paper|ink|epaper|color|front|light|bt|strongest|ultimate|"
+        r"fastest|lead|origin|box|out|of|no|space|large|intelligence|hd|fhd|calling|"
+        r"no cost|pen plus|pen|idea)\b",
         "", name, flags=re.IGNORECASE
     )
-
-    # Strip spec values
-    name = re.sub(
-        r"\b(\d+\s*gb|\d+\s*tb|\d+\s*mb|\d+\s*mp|\d+\s*mah|\d+\s*hz|"
-        r"\d+\s*inch|\d+\.\d+\s*cm|\d+\.\d+\s*in|\d+\s*gm)\b",
-        "", name, flags=re.IGNORECASE
-    )
-
-    # Strip processor names
-    name = re.sub(
-        r"\b(snapdragon|mediatek|helio|dimensity|exynos|bionic|"
-        r"a13|a14|a15|a16|a17|a18|m1|m2|m3|m4|gen\s*\d|elite)\b",
-        "", name, flags=re.IGNORECASE
-    )
-
-    # Strip Amazon listing noise
-    name = re.sub(
-        r"\b(with|including|bundle|pack|set|renewed|refurbished|"
-        r"unlocked|dual sim|single sim|ram|rom|storage|expandable|"
-        r"segment|largest|global debut|gaming|starfrost|storm grey|"
-        r"slate black|graphite|silver|gold|blue|black|white|green|"
-        r"purple|red|yellow|pink|bgmi|fps|curved|3d|combo|multicolour)\b",
-        "", name, flags=re.IGNORECASE
-    )
-
-    # Strip dimension patterns like "27 69 cm", "6 5 inch", "21 08 cm"
     name = re.sub(r"\b\d+\s+\d+\s*(cm|inch|in)\b", "", name, flags=re.IGNORECASE)
-
-    # Strip standalone numbers that are clearly sizes/specs
-    name = re.sub(r"\b(10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25|26|27|28|29|30|31)\b", "", name)
-
-    name = re.sub(r"\s+", " ", name).strip().lower()
-    return name
+    name = re.sub(r"\b(10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25|26|27|28|29|30|31|95|2020|2021)\b", "", name)
+    return re.sub(r"\s+", " ", name).strip().lower()
 
 
-def find_in_index(product_name: str) -> dict | None:
-    """
-    Find best matching device in GSMArena index using token overlap scoring.
-    Returns the matched index entry or None.
-    """
+def find_in_index(product_name: str, slug: str = "") -> dict | None:
     index = load_gsmarena_index()
-    cleaned = clean_for_match(product_name)
-    query_tokens = set(cleaned.split())
-
-    # Only strip truly meaningless words — keep pro/max/ultra/lite/plus etc.
-    stopwords = {"the", "and", "for", "with"}
-    query_tokens -= stopwords
+    cleaned = clean_for_match(product_name, slug)
+    # Remove pure noise tokens that survive cleaning
+    noise = {"the", "and", "for", "with", "hi", "e", "g", "c", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0"}
+    query_tokens = set(cleaned.split()) - noise
 
     if not query_tokens:
         return None
@@ -209,116 +200,112 @@ def find_in_index(product_name: str) -> dict | None:
 
     for entry in index:
         entry_tokens = set(entry["search_text"].split())
-
         overlap = len(query_tokens & entry_tokens)
+
         if overlap == 0:
             continue
 
-        # Must match ALL query tokens (100% recall on our side)
-        if overlap < len(query_tokens):
+        # Relax to 80% token match — allows minor mismatches
+        match_ratio = overlap / len(query_tokens)
+        if match_ratio < 0.8:
             continue
 
-        # Score = how many extra tokens the entry has beyond our query
-        # Fewer extras = better (more specific match)
-        entry_name_lower = entry["name"].lower()
-        name_tokens = set(entry_name_lower.split())
-        extra_in_entry = name_tokens - query_tokens
-        score = 1.0 - (0.1 * len(extra_in_entry))
+        name_tokens = set(entry["name"].lower().split())
+        extra = name_tokens - query_tokens
+        score = match_ratio - (0.05 * len(extra))
 
-        # Boost if brand matches
-        brand_lower = entry["brand"].lower()
-        if brand_lower and brand_lower in cleaned:
+        if entry["brand"].lower() in cleaned:
             score += 0.2
 
         if score > best_score:
             best_score = score
             best_match = entry
 
-    if best_score > 0 and best_match:
-        return best_match
-
-    return None
-
+    return best_match if best_score > 0 else None
 
 # ==============================
 # SPEC SCRAPER
 # ==============================
 
-def scrape_gsmarena_specs(url: str) -> dict | None:
-    """
-    Scrape the full spec table from a GSMArena product page.
-    Returns flat dict of {spec_name: spec_value}.
-    """
+def is_driver_alive(driver) -> bool:
     try:
-        time.sleep(random.uniform(3, 6))
-        res = requests.get(url, headers=HEADERS, timeout=15)
-        res.raise_for_status()
-        soup = BeautifulSoup(res.text, "html.parser")
+        _ = driver.current_url
+        return True
+    except Exception:
+        return False
 
-        specs = {}
-        spec_table = soup.select("div#specs-list tr")
 
-        if not spec_table:
-            log.warning(f"No spec table found at {url}")
-            return None
+def scrape_gsmarena_specs(driver, url: str) -> tuple:
+    """Returns (specs_dict_or_None, driver) — driver may be restarted."""
+    for attempt in range(2):
+        try:
+            if not is_driver_alive(driver):
+                log.warning("Driver dead, restarting...")
+                try:
+                    driver.quit()
+                except Exception:
+                    pass
+                driver = create_driver()
 
-        current_category = "General"
-        for row in spec_table:
-            th = row.select_one("td.ttl")
-            td_val = row.select_one("td.nfo")
+            driver.get(url)
+            time.sleep(random.uniform(8, 14))  # longer delay to avoid rate limit
 
-            if th and not td_val:
-                current_category = th.get_text(strip=True)
-                continue
+            soup = BeautifulSoup(driver.page_source, "html.parser")
+            spec_table = soup.select("div#specs-list tr")
 
-            if th and td_val:
-                key = f"{current_category} — {th.get_text(strip=True)}"
-                value = td_val.get_text(separator=" ", strip=True)
-                value = re.sub(r"\s+", " ", value).strip()
-                if key and value and value != "—":
-                    specs[key] = value
+            if not spec_table:
+                log.warning(f"No spec table found at {url}")
+                return None, driver
 
-        log.info(f"Scraped {len(specs)} specs from {url}")
-        return specs if specs else None
+            specs = {}
+            current_category = "General"
+            for row in spec_table:
+                th = row.select_one("td.ttl")
+                td_val = row.select_one("td.nfo")
+                if th and not td_val:
+                    current_category = th.get_text(strip=True)
+                elif th and td_val:
+                    key = f"{current_category} — {th.get_text(strip=True)}"
+                    value = re.sub(r"\s+", " ", td_val.get_text(separator=" ", strip=True)).strip()
+                    if key and value and value != "—":
+                        specs[key] = value
 
-    except Exception as e:
-        log.error(f"Spec scrape failed for '{url}': {e}")
-        return None
+            log.info(f"Scraped {len(specs)} specs from {url}")
+            return (specs if specs else None), driver
 
+        except Exception as e:
+            log.warning(f"Attempt {attempt+1} failed for '{url}': {type(e).__name__}")
+            try:
+                driver.quit()
+            except Exception:
+                pass
+            driver = create_driver()
+            time.sleep(3)
+
+    log.error(f"All attempts failed for '{url}'")
+    return None, driver
 
 # ==============================
-# SUPABASE HELPERS
+# SUPABASE
 # ==============================
 
-def get_products_needing_enrichment() -> list[dict]:
+def should_skip(name: str) -> bool:
+    return any(kw in name.lower() for kw in SKIP_KEYWORDS)
+
+
+def get_products_needing_enrichment() -> list:
     try:
-        res = (
-            supabase.table("products")
-            .select("id, name, category, slug")
-            .in_("category", list(SUPPORTED_CATEGORIES))
-            .execute()
-        )
-        products = res.data or []
-
-        needs_enrichment = []
-        for product in products:
-            if should_skip(product["name"]):
+        res = supabase.table("products").select("id, name, category, slug").in_("category", list(SUPPORTED_CATEGORIES)).execute()
+        needs = []
+        for p in (res.data or []):
+            if should_skip(p["name"]):
                 continue
-
-            spec_res = (
-                supabase.table("product_specs")
-                .select("id", count="exact")
-                .eq("product_id", product["id"])
-                .execute()
-            )
-            count = spec_res.count or 0
-            if count < MIN_SPECS_THRESHOLD:
-                needs_enrichment.append(product)
-                log.info(f"Needs enrichment: {product['name']} ({count} specs)")
-
-        log.info(f"{len(needs_enrichment)} products need enrichment")
-        return needs_enrichment
-
+            gsm_res = supabase.table("product_specs").select("id", count="exact").eq("product_id", p["id"]).eq("source", "gsmarena").execute()
+            if (gsm_res.count or 0) == 0:
+                needs.append(p)
+                log.info(f"Needs enrichment: {p['name']}")
+        log.info(f"{len(needs)} products need enrichment")
+        return needs
     except Exception as e:
         log.error(f"Failed to fetch products: {e}")
         return []
@@ -326,38 +313,24 @@ def get_products_needing_enrichment() -> list[dict]:
 
 def upsert_specs(product_id: str, specs: dict) -> bool:
     try:
-        existing_res = (
-            supabase.table("product_specs")
-            .select("spec_key")
-            .eq("product_id", product_id)
-            .execute()
-        )
-        existing_keys = {row["spec_key"] for row in (existing_res.data or [])}
+        existing = supabase.table("product_specs").select("spec_key").eq("product_id", product_id).execute()
+        existing_keys = {r["spec_key"] for r in (existing.data or [])}
 
-        rows_to_insert = [
-            {
-                "product_id": product_id,
-                "spec_key": key,
-                "spec_value": str(value),
-                "source": "gsmarena",
-                "updated_at": datetime.utcnow().isoformat(),
-            }
-            for key, value in specs.items()
-            if key not in existing_keys
+        rows = [
+            {"product_id": product_id, "spec_key": k, "spec_value": str(v), "source": "gsmarena", "updated_at": datetime.utcnow().isoformat()}
+            for k, v in specs.items() if k not in existing_keys
         ]
 
-        if not rows_to_insert:
-            log.info(f"No new specs to insert for product {product_id}")
+        if not rows:
+            log.info(f"No new specs for {product_id}")
             return True
 
-        supabase.table("product_specs").insert(rows_to_insert).execute()
-        log.info(f"Inserted {len(rows_to_insert)} specs for product {product_id}")
+        supabase.table("product_specs").insert(rows).execute()
+        log.info(f"Inserted {len(rows)} specs for product {product_id}")
         return True
-
     except Exception as e:
-        log.error(f"Failed to upsert specs for product {product_id}: {e}")
+        log.error(f"Failed to upsert specs for {product_id}: {e}")
         return False
-
 
 # ==============================
 # MAIN
@@ -368,45 +341,56 @@ def main():
 
     products = get_products_needing_enrichment()
     if not products:
-        log.info("All products already enriched. Nothing to do.")
+        log.info("All products already enriched.")
         return
+
+    driver = create_driver()
+    log.info("Chrome driver started")
 
     success = 0
     failed = 0
     not_found = 0
-    specs_cache = {}  # Cache by URL to avoid re-fetching same page for duplicate products
+    specs_cache = {}
 
     for product in products:
         log.info(f"Processing: {product['name']}")
 
-        match = find_in_index(product["name"])
+        match = find_in_index(product["name"], product.get("slug", ""))
         if not match:
-            log.warning(f"  Not found in GSMArena index: {product['name']}")
+            log.warning(f"  Not found: {product['name']}")
             not_found += 1
             continue
 
         log.info(f"  Matched: {match['brand']} {match['name']} → {match['url']}")
 
-        # Use cached specs if we already fetched this URL
         url = match["url"]
         if url not in specs_cache:
-            specs_cache[url] = scrape_gsmarena_specs(url)
-            time.sleep(random.uniform(5, 10))  # Only sleep on actual fetches
+            specs, driver = scrape_gsmarena_specs(driver, url)
+            specs_cache[url] = specs
+            # Periodic long pause every 15 products to avoid rate limiting
+            if success % 15 == 0 and success > 0:
+                log.info("Pausing 60s to avoid rate limit...")
+                time.sleep(60)
+            else:
+                time.sleep(random.uniform(10, 18))
         else:
             log.info(f"  Using cached specs for {url}")
 
         specs = specs_cache[url]
         if not specs:
-            log.warning(f"  Spec scrape failed for {product['name']}")
+            log.warning(f"  Scrape failed: {product['name']}")
             failed += 1
             continue
 
-        ok = upsert_specs(product["id"], specs)
-        if ok:
+        if upsert_specs(product["id"], specs):
             success += 1
         else:
             failed += 1
 
+    try:
+        driver.quit()
+    except Exception:
+        pass
 
     log.info(f"=== Done — {success} enriched, {not_found} not found, {failed} failed ===")
 

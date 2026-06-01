@@ -24,12 +24,12 @@ AFFILIATE_TAG = os.getenv("AFFILIATE_TAG", "sync8in-21")
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# Paths
 LOGS_DIR = "logs"
 os.makedirs(LOGS_DIR, exist_ok=True)
 
 LOG_FILE = os.path.join(LOGS_DIR, f"scraper_{datetime.now().strftime('%Y%m%d')}.log")
 PROGRESS_FILE = os.path.join(LOGS_DIR, "scraper_progress.json")
+WEEKLY_PROGRESS_FILE = os.path.join(LOGS_DIR, "weekly_progress.json")
 
 logging.basicConfig(
     level=logging.INFO,
@@ -46,11 +46,11 @@ log = logging.getLogger(__name__)
 # ==============================
 
 CATEGORIES = {
-    "mobiles":     "https://www.amazon.in/s?i=electronics&rh=n%3A1805560031&s=popularity-rank&fs=true",
-    "laptops":     "https://www.amazon.in/s?i=computers&rh=n%3A1375424031&s=popularity-rank&fs=true",
-    "tablets":     "https://www.amazon.in/s?i=computers&rh=n%3A1375458031&s=popularity-rank&fs=true",
-    "earphones":   "https://www.amazon.in/s?i=electronics&rh=n%3A1388921031&s=popularity-rank&fs=true",
-    "accessories": "https://www.amazon.in/s?i=electronics&rh=n%3A1389402031&s=popularity-rank&fs=true",
+    "mobiles":        "https://www.amazon.in/s?i=electronics&rh=n%3A1805560031&s=popularity-rank&fs=true",
+    "laptops":        "https://www.amazon.in/s?i=computers&rh=n%3A1375424031&s=popularity-rank&fs=true",
+    "tablets":        "https://www.amazon.in/s?i=computers&rh=n%3A1375458031&s=popularity-rank&fs=true",
+    "earphones":      "https://www.amazon.in/s?i=electronics&rh=n%3A1388921031&s=popularity-rank&fs=true",
+    "accessories":    "https://www.amazon.in/s?i=electronics&rh=n%3A1389402031&s=popularity-rank&fs=true",
 }
 
 MAX_PAGES = 20
@@ -120,7 +120,6 @@ def create_driver():
     options.add_argument("--disable-gpu")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--window-size=1920,1080")
-    options.add_argument("--headless")
 
     ua = random.choice(USER_AGENTS)
     options.add_argument(f"--user-agent={ua}")
@@ -131,7 +130,6 @@ def create_driver():
 
 
 def restart_driver(driver):
-    """Safely kill existing driver and create a fresh one."""
     try:
         driver.quit()
     except Exception:
@@ -190,6 +188,65 @@ def get_existing_asins():
     log.info(f"Found {len(asins)} existing ASINs in DB")
     return asins
 
+def get_existing_names():
+    result = supabase.from_("products").select("name").execute()
+    names = set(
+        row["name"].lower().strip()
+        for row in result.data or []
+        if row.get("name")
+    )
+    log.info(f"Found {len(names)} existing product names in DB")
+    return names
+
+# ==============================
+# PROGRESS TRACKING — WEEKLY
+# ==============================
+
+def save_weekly_progress(completed_categories):
+    with open(WEEKLY_PROGRESS_FILE, "w") as f:
+        json.dump({
+            "completed": completed_categories,
+            "timestamp": datetime.utcnow().isoformat()
+        }, f)
+
+def load_weekly_progress():
+    try:
+        with open(WEEKLY_PROGRESS_FILE, "r") as f:
+            return json.load(f).get("completed", [])
+    except:
+        return []
+
+def clear_weekly_progress():
+    try:
+        os.remove(WEEKLY_PROGRESS_FILE)
+    except:
+        pass
+
+# ==============================
+# PROGRESS TRACKING — DAILY
+# ==============================
+
+def save_progress(last_completed_index):
+    with open(PROGRESS_FILE, "w") as f:
+        json.dump({
+            "last_completed_index": last_completed_index,
+            "timestamp": datetime.utcnow().isoformat()
+        }, f)
+
+def load_progress():
+    try:
+        with open(PROGRESS_FILE, "r") as f:
+            data = json.load(f)
+            return data.get("last_completed_index", 0)
+    except:
+        return 0
+
+def clear_progress():
+    try:
+        os.remove(PROGRESS_FILE)
+    except:
+        pass
+
 # ==============================
 # SCRAPE URLS FROM CATEGORY PAGE
 # ==============================
@@ -210,6 +267,9 @@ def scrape_category_urls(driver, category_name, base_url, max_pages=MAX_PAGES):
             for p in products:
                 href = p.get_attribute("href")
                 if href:
+                    # ✅ Skip variant URLs — th= means it's a colour/storage variant
+                    if "th=" in href:
+                        continue
                     clean = clean_url(href)
                     if clean:
                         urls.add(clean)
@@ -432,31 +492,6 @@ def insert_new_product(product, category):
         log.error(f"  ❌ Insert error: {e}")
 
 # ==============================
-# PROGRESS TRACKING
-# ==============================
-
-def save_progress(last_completed_index):
-    with open(PROGRESS_FILE, "w") as f:
-        json.dump({
-            "last_completed_index": last_completed_index,
-            "timestamp": datetime.utcnow().isoformat()
-        }, f)
-
-def load_progress():
-    try:
-        with open(PROGRESS_FILE, "r") as f:
-            data = json.load(f)
-            return data.get("last_completed_index", 0)
-    except:
-        return 0
-
-def clear_progress():
-    try:
-        os.remove(PROGRESS_FILE)
-    except:
-        pass
-
-# ==============================
 # DAILY MODE — Update prices only
 # ==============================
 
@@ -465,7 +500,6 @@ def run_daily_price_update():
     log.info("DAILY MODE — Updating prices for existing products")
     log.info("=" * 50)
 
-    # Fetch ALL products with pagination
     all_products = []
     page = 0
     page_size = 1000
@@ -505,7 +539,6 @@ def run_daily_price_update():
     failed_products = []
     updated_products = []
 
-    # Restart driver every N products to avoid Chrome crashes
     RESTART_EVERY = 200
 
     for i, p in enumerate(products):
@@ -515,7 +548,6 @@ def run_daily_price_update():
         if not asin:
             continue
 
-        # Periodic driver restart to prevent Chrome from crashing mid-run
         if i > 0 and i % RESTART_EVERY == 0:
             log.info(f"🔄 Scheduled driver restart at product #{actual_index}")
             driver = restart_driver(driver)
@@ -527,11 +559,6 @@ def run_daily_price_update():
             driver.get(url)
             time.sleep(random.uniform(2, 5))
 
-            # TEMP DEBUG — remove after
-            page_src = driver.page_source[:2000]
-            log.info(f"PAGE SOURCE SNIPPET: {page_src}")
-
-            # Check if session is alive — restart if not
             try:
                 _ = driver.current_url
             except Exception as session_err:
@@ -563,7 +590,6 @@ def run_daily_price_update():
                 time.sleep(random.uniform(2, 4))
                 continue
 
-            # Price — multiple fallbacks
             price_xpaths = [
                 "//span[@class='a-price aok-align-center reinventPricePriceToPayMargin priceToPay apex-pricetopay-value']/span/span[2]",
                 "//span[@class='a-price-whole']",
@@ -581,7 +607,6 @@ def run_daily_price_update():
                         price = int(price_clean)
                         break
 
-            # Rating
             rating = None
             review_count = None
             try:
@@ -632,7 +657,6 @@ def run_daily_price_update():
             errors += 1
             save_progress(actual_index)
 
-            # Restart driver on session/chrome errors
             if any(kw in error_str.lower() for kw in [
                 "invalid session", "session deleted", "no such window",
                 "chrome not reachable", "connection refused", "target closed"
@@ -679,7 +703,14 @@ def run_weekly_new_products():
     log.info("WEEKLY MODE — Scraping new products")
     log.info("=" * 50)
 
+    # Resume support — skip already completed categories
+    completed_categories = load_weekly_progress()
+    if completed_categories:
+        log.info(f"⚠️  Resuming — already completed: {completed_categories}")
+
     existing_asins = get_existing_asins()
+    existing_names = get_existing_names()
+
     driver = create_driver()
     wait = WebDriverWait(driver, 10)
 
@@ -688,18 +719,28 @@ def run_weekly_new_products():
     total_junk = 0
 
     for category, base_url in CATEGORIES.items():
+
+        # Skip already completed categories
+        if category in completed_categories:
+            log.info(f"⏭️  Skipping already completed: {category}")
+            continue
+
         log.info(f"\n{'='*30}")
         log.info(f"Category: {category}")
 
         urls = scrape_category_urls(driver, category, base_url)
         log.info(f"Found {len(urls)} URLs for {category}")
 
-        new_urls = [url for url in urls if get_asin(url) and get_asin(url) not in existing_asins]
+        new_urls = [
+            url for url in urls
+            if get_asin(url) and get_asin(url) not in existing_asins
+        ]
         log.info(f"New products to scrape: {len(new_urls)}")
 
         for url in new_urls:
             asin = get_asin(url)
 
+            # Check driver session alive
             try:
                 _ = driver.current_url
             except Exception:
@@ -713,23 +754,39 @@ def run_weekly_new_products():
                 total_junk += 1
                 continue
 
+            # Brand filter
             if not is_known_brand(product.get("brand", "")):
                 log.info(f"  ⚠️ Unknown brand: {product.get('brand')} — {product['name'][:50]}")
                 total_skipped += 1
                 continue
 
+            # ✅ Duplicate name filter — skip if same name already in DB
+            product_name_lower = product["name"].lower().strip()
+            if product_name_lower in existing_names:
+                log.info(f"  ⚠️ Duplicate name skipped: {product['name'][:50]}")
+                total_skipped += 1
+                continue
+
             insert_new_product(product, category)
             existing_asins.add(asin)
+            existing_names.add(product_name_lower)
             total_new += 1
             time.sleep(3)
+
+        # ✅ Mark category as complete and save progress
+        completed_categories.append(category)
+        save_weekly_progress(completed_categories)
+        log.info(f"✅ Category complete: {category}")
 
     try:
         driver.quit()
     except:
         pass
 
+    clear_weekly_progress()
+
     log.info(f"\n✅ Weekly scrape complete")
-    log.info(f"   New: {total_new} | Skipped brand: {total_skipped} | Junk: {total_junk}")
+    log.info(f"   New: {total_new} | Skipped: {total_skipped} | Junk: {total_junk}")
 
 # ==============================
 # MAIN

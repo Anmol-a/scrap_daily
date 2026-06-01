@@ -1,0 +1,6 @@
+python backfill_specs.py tvs
+
+# Then in parallel in separate terminals
+python backfill_specs.py mobiles
+python backfill_specs.py laptops
+python backfill_specs.py earphones
