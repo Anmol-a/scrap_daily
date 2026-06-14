@@ -1,12 +1,12 @@
-name: Daily Price Update
+name: Weekly Spec Fill
 
 on:
   schedule:
-    - cron: '30 0 * * *'   # 6:00 AM IST daily
+    - cron: '30 21 * * 0'   # 3:00 AM IST every Sunday (1hr after weekly new products)
   workflow_dispatch:
 
 jobs:
-  daily-scrape:
+  specs-fill:
     runs-on: ubuntu-latest
     timeout-minutes: 360
 
@@ -29,18 +29,18 @@ jobs:
         run: |
           pip install selenium undetected-chromedriver supabase python-dotenv requests
 
-      - name: Run daily scraper
+      - name: Run specs filler
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           AFFILIATE_TAG: sync8in-21
         run: |
-          python3 scrapers/scraper.py daily
+          python3 scrapers/scraper.py specs
 
       - name: Upload logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: daily-logs-${{ github.run_number }}
+          name: specs-logs-${{ github.run_number }}
           path: logs/
           retention-days: 7

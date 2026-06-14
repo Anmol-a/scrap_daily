@@ -1,8 +1,33 @@
+"""
+sync8 scraper — v2
+==================
+Three modes in one file, all based on backfill_specs.py reliable foundations.
+
+Usage:
+  python scraper.py daily           # Update prices + ratings for all existing products
+  python scraper.py specs           # Fill/refresh specs for products missing them
+  python scraper.py weekly          # Discover + insert new products from category pages
+  python scraper.py daily --test    # Run on 5 products only
+  python scraper.py weekly --category mobiles   # One category only
+
+All modes:
+  - Auto-detect Chrome version (no hardcoded version_main)
+  - Resume support via progress JSON
+  - Chrome restart every 150 products
+  - Proper in_stock logic: only True when price found, False when unavailable text seen
+  - Scrolls page before spec extraction (lazy-load fix from backfill_specs)
+  - JS-first spec extraction with 3 fallbacks
+"""
+
 import os
 import re
+import sys
 import time
 import json
 import logging
+import random
+import argparse
+import subprocess
 from datetime import datetime
 from dotenv import load_dotenv
 import undetected_chromedriver as uc
@@ -10,11 +35,10 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from supabase import create_client
-import random
 
-# ==============================
+# ══════════════════════════════════════════════════════════════
 # SETUP
-# ==============================
+# ══════════════════════════════════════════════════════════════
 
 load_dotenv()
 
@@ -27,9 +51,8 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 LOGS_DIR = "logs"
 os.makedirs(LOGS_DIR, exist_ok=True)
 
-LOG_FILE = os.path.join(LOGS_DIR, f"scraper_{datetime.now().strftime('%Y%m%d')}.log")
-PROGRESS_FILE = os.path.join(LOGS_DIR, "scraper_progress.json")
-WEEKLY_PROGRESS_FILE = os.path.join(LOGS_DIR, "weekly_progress.json")
+LOG_FILE = os.path.join(LOGS_DIR, f"scraper_{datetime.now().strftime('%Y%m%d_%H%M')}.log")
+PROGRESS_FILE = os.path.join(LOGS_DIR, "progress.json")
 
 logging.basicConfig(
     level=logging.INFO,
@@ -41,23 +64,29 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-# ==============================
+# Silence noisy third-party loggers
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("hpack").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+
+# ══════════════════════════════════════════════════════════════
 # CONFIG
-# ==============================
+# ══════════════════════════════════════════════════════════════
+
+BATCH_SIZE    = 1000
+RESTART_EVERY = 150   # restart Chrome every N products
 
 CATEGORIES = {
-    "mobiles":        "https://www.amazon.in/s?i=electronics&rh=n%3A1805560031&s=popularity-rank&fs=true",
-    "laptops":        "https://www.amazon.in/s?i=computers&rh=n%3A1375424031&s=popularity-rank&fs=true",
-    "tablets":        "https://www.amazon.in/s?i=computers&rh=n%3A1375458031&s=popularity-rank&fs=true",
-    "earphones":      "https://www.amazon.in/s?i=electronics&rh=n%3A1388921031&s=popularity-rank&fs=true",
-    "accessories":    "https://www.amazon.in/s?i=electronics&rh=n%3A1389402031&s=popularity-rank&fs=true",
+    "mobiles":      "https://www.amazon.in/s?i=electronics&rh=n%3A1805560031&s=popularity-rank&fs=true",
+    "laptops":      "https://www.amazon.in/s?i=computers&rh=n%3A1375424031&s=popularity-rank&fs=true",
+    "tablets":      "https://www.amazon.in/s?i=computers&rh=n%3A1375458031&s=popularity-rank&fs=true",
+    "earphones":    "https://www.amazon.in/s?i=electronics&rh=n%3A1388921031&s=popularity-rank&fs=true",
+    "accessories":  "https://www.amazon.in/s?i=electronics&rh=n%3A1389402031&s=popularity-rank&fs=true",
+    "tvs":          "https://www.amazon.in/s?i=electronics&rh=n%3A1389396031&s=popularity-rank&fs=true",
+    "smart_watches":"https://www.amazon.in/s?i=electronics&rh=n%3A1350387031&s=popularity-rank&fs=true",
 }
 
 MAX_PAGES = 20
-
-# ==============================
-# JUNK FILTERS
-# ==============================
 
 BRAND_WHITELIST = {
     "apple", "samsung", "oneplus", "google", "xiaomi", "redmi", "poco", "realme",
@@ -72,174 +101,49 @@ BRAND_WHITELIST = {
     "ikall", "domo", "swipe", "datawind", "thomson", "kodak", "cloudwalker",
     "foxsky", "iffalcon", "panasonic", "sharp", "grundig",
     "whirlpool", "godrej", "titan", "fastrack", "casio", "fossil", "garmin",
-    "fitbit", "amazfit", "huami", "itel", "gionee", "coolpad"
+    "fitbit", "amazfit", "huami", "itel", "gionee", "coolpad", "cmf",
 }
 
 JUNK_KEYWORDS = [
     "ayurvedic", "ayurveda", "gulika", "kashaya", "kashayam", "chooranam",
     "vaidyaratnam", "herbal", "capsule", "syrup", "medicine", "pharma",
-    "tablet press", "manual press", "holes press", "3d printer", "ptfe tube",
+    "tablet press", "manual press", "3d printer", "ptfe tube",
     "prostilon", "alleczy", "pylmukti", "hriday kavach", "myostaal",
     "nirocil", "wheezal", "tenstrim", "vimfix", "panchanimbadi", "medohar",
-    "guggulu", "vati", "bati", "churna", "kadha", "kwath", "ras ", "rasayan",
+    "guggulu", "vati", "bati", "churna", "kadha", "kwath", "rasayan",
     "wellchem", "khansi", "neem tablet", "mohra", "panchamrut", "kutajghan",
     "harboliv", "deprotal", "livo tablet", "heightex", "laxyalo", "enurex",
     "sahasrayogam", "dhootapapeshwar", "baidyanath", "jamna herbal",
     "sri sri tattva", "unjha", "sandu", "protein powder", "whey protein",
     "mass gainer", "pre workout", "creatine", "bcaa", "vitamin tablet",
-    "supplement tablet", "health tablet", "nos with free", "100 nos",
-    "60 nos", "30 tab", "60 tab", "100 tab", "500mg", "250mg", "1000mg",
-    "power tablet for men", "stamina tablet", "strength tablet"
+    "supplement tablet", "health tablet", "100 nos", "60 nos", "30 tab",
+    "60 tab", "100 tab", "500mg", "250mg", "1000mg",
+    "power tablet for men", "stamina tablet", "strength tablet",
 ]
 
-# ==============================
-# DRIVER
-# ==============================
+SPEC_SKIP_KEYS = {
+    "Customer Reviews", "Best Sellers Rank", "ASIN",
+    "Manufacturer Contact Information", "Importer Contact Information",
+    "Packer Contact Information", "Manufacturer",
+}
 
-def load_user_agents(filepath="data/user_agents.txt"):
-    try:
-        with open(filepath, "r") as f:
-            agents = [line.strip() for line in f if line.strip() and not line.startswith("#")]
-        modern = [a for a in agents if any(
-            f"Chrome/{v}" in a for v in range(100, 150)
-        ) or any(
-            f"Firefox/{v}" in a for v in range(100, 130)
-        )]
-        return modern if modern else agents
-    except:
-        return ["Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"]
+# ══════════════════════════════════════════════════════════════
+# PROGRESS
+# ══════════════════════════════════════════════════════════════
 
-USER_AGENTS = load_user_agents()
-
-
-def create_driver():
-    options = uc.ChromeOptions()
-    options.add_argument("--incognito")
-    options.add_argument("--disable-blink-features=AutomationControlled")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-gpu")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--window-size=1920,1080")
-
-    ua = random.choice(USER_AGENTS)
-    options.add_argument(f"--user-agent={ua}")
-    log.info(f"Using user agent: {ua[:80]}...")
-
-    driver = uc.Chrome(version_main=148, options=options, use_subprocess=True)
-    return driver
-
-
-def restart_driver(driver):
-    try:
-        driver.quit()
-    except Exception:
-        pass
-    time.sleep(5)
-    log.info("Restarting Chrome driver...")
-    return create_driver()
-
-# ==============================
-# HELPERS
-# ==============================
-
-def get_asin(url):
-    match = re.search(r"/dp/([A-Z0-9]{10})", url)
-    return match.group(1) if match else None
-
-def clean_url(url):
-    if "/dp/" in url:
-        asin = url.split("/dp/")[1].split("/")[0]
-        return f"https://www.amazon.in/dp/{asin}"
-    if "/gp/product/" in url:
-        asin = url.split("/gp/product/")[1].split("/")[0]
-        return f"https://www.amazon.in/dp/{asin}"
-    return None
-
-def make_slug(name):
-    slug = name.lower()
-    slug = re.sub(r"[^a-z0-9\s-]", "", slug)
-    slug = re.sub(r"\s+", "-", slug.strip())
-    slug = re.sub(r"-+", "-", slug)
-    return slug[:200]
-
-def is_junk(name, brand=None):
-    name_lower = name.lower()
-    for kw in JUNK_KEYWORDS:
-        if kw in name_lower:
-            log.info(f"Junk keyword '{kw}' found in: {name}")
-            return True
-    return False
-
-def is_known_brand(brand):
-    if not brand:
-        return False
-    brand_lower = brand.lower().strip()
-    for known in BRAND_WHITELIST:
-        if known in brand_lower or brand_lower in known:
-            return True
-    return False
-
-def get_existing_asins():
-    result = supabase.from_("products").select("amazon_asin").execute()
-    asins = set()
-    for row in result.data or []:
-        if row.get("amazon_asin"):
-            asins.add(row["amazon_asin"])
-    log.info(f"Found {len(asins)} existing ASINs in DB")
-    return asins
-
-def get_existing_names():
-    result = supabase.from_("products").select("name").execute()
-    names = set(
-        row["name"].lower().strip()
-        for row in result.data or []
-        if row.get("name")
-    )
-    log.info(f"Found {len(names)} existing product names in DB")
-    return names
-
-# ==============================
-# PROGRESS TRACKING — WEEKLY
-# ==============================
-
-def save_weekly_progress(completed_categories):
-    with open(WEEKLY_PROGRESS_FILE, "w") as f:
-        json.dump({
-            "completed": completed_categories,
-            "timestamp": datetime.utcnow().isoformat()
-        }, f)
-
-def load_weekly_progress():
-    try:
-        with open(WEEKLY_PROGRESS_FILE, "r") as f:
-            return json.load(f).get("completed", [])
-    except:
-        return []
-
-def clear_weekly_progress():
-    try:
-        os.remove(WEEKLY_PROGRESS_FILE)
-    except:
-        pass
-
-# ==============================
-# PROGRESS TRACKING — DAILY
-# ==============================
-
-def save_progress(last_completed_index):
+def save_progress(data: dict):
     with open(PROGRESS_FILE, "w") as f:
-        json.dump({
-            "last_completed_index": last_completed_index,
-            "timestamp": datetime.utcnow().isoformat()
-        }, f)
+        json.dump({**data, "ts": datetime.utcnow().isoformat()}, f)
 
-def load_progress():
+def load_progress(mode: str) -> dict:
     try:
-        with open(PROGRESS_FILE, "r") as f:
+        with open(PROGRESS_FILE) as f:
             data = json.load(f)
-            return data.get("last_completed_index", 0)
+            if data.get("mode") == mode:
+                return data
     except:
-        return 0
+        pass
+    return {}
 
 def clear_progress():
     try:
@@ -247,80 +151,198 @@ def clear_progress():
     except:
         pass
 
-# ==============================
-# SCRAPE URLS FROM CATEGORY PAGE
-# ==============================
+# ══════════════════════════════════════════════════════════════
+# CHROME DRIVER — auto-detect version, no hardcoding
+# ══════════════════════════════════════════════════════════════
 
-def scrape_category_urls(driver, category_name, base_url, max_pages=MAX_PAGES):
-    log.info(f"Scraping URLs for category: {category_name}")
-    urls = set()
-
-    for page in range(1, max_pages + 1):
-        page_url = f"{base_url}&page={page}"
+def get_chrome_version() -> int | None:
+    """Auto-detect installed Chrome major version."""
+    cmds = [
+        ["google-chrome", "--version"],
+        ["google-chrome-stable", "--version"],
+        ["chromium-browser", "--version"],
+        ["chromium", "--version"],
+    ]
+    for cmd in cmds:
         try:
-            driver.get(page_url)
-            time.sleep(4)
-            products = driver.find_elements(
-                By.XPATH,
-                "//a[@class='a-link-normal s-no-outline']"
-            )
-            for p in products:
-                href = p.get_attribute("href")
-                if href:
-                    # ✅ Skip variant URLs — th= means it's a colour/storage variant
-                    if "th=" in href:
-                        continue
-                    clean = clean_url(href)
-                    if clean:
-                        urls.add(clean)
-            log.info(f"  Page {page}: {len(urls)} URLs collected so far")
-            time.sleep(3)
-        except Exception as e:
-            log.error(f"  Error on page {page}: {e}")
+            out = subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode()
+            match = re.search(r"(\d+)\.\d+\.\d+\.\d+", out)
+            if match:
+                ver = int(match.group(1))
+                log.info(f"Detected Chrome version: {ver}")
+                return ver
+        except:
             continue
+    log.warning("Could not detect Chrome version — letting undetected_chromedriver auto-detect")
+    return None
 
-    return list(urls)
 
-# ==============================
-# SCRAPE SPECS FROM PRODUCT PAGE
-# ==============================
+def create_driver() -> uc.Chrome:
+    opts = uc.ChromeOptions()
+    opts.add_argument("--headless=new")                        # headless — faster, less memory
+    opts.add_argument("--incognito")
+    opts.add_argument("--disable-blink-features=AutomationControlled")
+    opts.add_argument("--no-sandbox")
+    opts.add_argument("--disable-gpu")
+    opts.add_argument("--disable-dev-shm-usage")
+    opts.add_argument("--window-size=1920,1080")
+    opts.add_argument("--disable-extensions")
+    opts.add_argument("--disable-infobars")
+    opts.add_argument("--lang=en-IN")
 
-def extract_table_specs(driver):
+    # Random user agent from a curated list
+    ua_list = [
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    ]
+    opts.add_argument(f"--user-agent={random.choice(ua_list)}")
+
+    version = get_chrome_version()
+
+    kwargs = {"options": opts, "use_subprocess": True}
+    if version:
+        kwargs["version_main"] = version
+
+    driver = uc.Chrome(**kwargs)
+    return driver
+
+
+def restart_driver(driver) -> uc.Chrome:
+    try:
+        driver.quit()
+    except:
+        pass
+    time.sleep(5)
+    log.info("Restarting Chrome driver...")
+    return create_driver()
+
+
+def ensure_session(driver) -> uc.Chrome:
+    """Check if session is alive, restart if not."""
+    try:
+        _ = driver.current_url
+        return driver
+    except:
+        log.warning("Session lost — restarting driver")
+        return restart_driver(driver)
+
+# ══════════════════════════════════════════════════════════════
+# HELPERS
+# ══════════════════════════════════════════════════════════════
+
+def get_asin(url: str) -> str | None:
+    match = re.search(r"/dp/([A-Z0-9]{10})", url)
+    return match.group(1) if match else None
+
+def clean_url(url: str) -> str | None:
+    if "/dp/" in url:
+        asin = url.split("/dp/")[1].split("/")[0].split("?")[0]
+        return f"https://www.amazon.in/dp/{asin}"
+    if "/gp/product/" in url:
+        asin = url.split("/gp/product/")[1].split("/")[0].split("?")[0]
+        return f"https://www.amazon.in/dp/{asin}"
+    return None
+
+def make_slug(name: str) -> str:
+    slug = name.lower()
+    slug = re.sub(r"[^a-z0-9\s-]", "", slug)
+    slug = re.sub(r"\s+", "-", slug.strip())
+    slug = re.sub(r"-+", "-", slug)
+    return slug[:200]
+
+def is_junk(name: str) -> bool:
+    name_lower = name.lower()
+    for kw in JUNK_KEYWORDS:
+        if kw in name_lower:
+            return True
+    return False
+
+def is_known_brand(brand: str | None) -> bool:
+    if not brand:
+        return False
+    b = brand.lower().strip()
+    return any(known in b or b in known for known in BRAND_WHITELIST)
+
+def clean_unicode(s: str) -> str:
+    return s.replace("\u200f", "").replace("\u200e", "").replace("\u00a0", " ").strip()
+
+# ══════════════════════════════════════════════════════════════
+# SPEC EXTRACTION  (backfill_specs.py logic — most reliable)
+# ══════════════════════════════════════════════════════════════
+
+def scroll_page(driver):
+    """Scroll to trigger lazy-loaded spec tables — key insight from backfill_specs."""
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight * 0.5);")
+    time.sleep(1.5)
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight * 0.75);")
+    time.sleep(1.5)
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+    time.sleep(1.5)
+
+
+def extract_table_specs(driver) -> dict:
     specs = {}
-    try:
-        rows = driver.find_elements(
-            By.XPATH,
-            "//table[@id='productDetails_techSpec_section_1']//tr"
-        )
-        for row in rows:
-            try:
-                key = row.find_element(By.TAG_NAME, "th").text.strip()
-                val = row.find_element(By.TAG_NAME, "td").text.strip()
-                specs[key] = val
-            except:
-                continue
-    except:
-        pass
 
+    # Primary: JS execution — most reliable across all Amazon page layouts
     try:
-        rows = driver.find_elements(
-            By.XPATH,
-            "//table[@id='productDetails_detailBullets_sections1']//tr"
-        )
-        for row in rows:
+        rows = driver.execute_script("""
+            return [...document.querySelectorAll('table.a-keyvalue.prodDetTable tr')]
+                .map(r => ({
+                    key: r.querySelector('th')?.innerText.trim(),
+                    val: r.querySelector('td')?.innerText.trim()
+                }))
+                .filter(r => r.key && r.val);
+        """)
+        for row in (rows or []):
+            key = clean_unicode(row.get("key") or "")
+            val = clean_unicode(row.get("val") or "")
+            if key and val and key not in SPEC_SKIP_KEYS:
+                specs[key] = val
+    except Exception as e:
+        log.warning(f"  JS spec extraction failed: {e}")
+
+    # Fallback 1: older Amazon table IDs
+    if not specs:
+        for tid in [
+            "productDetails_techSpec_section_1",
+            "productDetails_techSpec_section_2",
+            "productDetails_detailBullets_sections1",
+            "productDetails_db_sections",
+        ]:
             try:
-                key = row.find_element(By.TAG_NAME, "th").text.strip()
-                val = row.find_element(By.TAG_NAME, "td").text.strip()
-                if key and val and key not in specs:
-                    specs[key] = val
+                rows = driver.find_elements(By.XPATH, f"//table[@id='{tid}']//tr")
+                for row in rows:
+                    try:
+                        key = clean_unicode(row.find_element(By.TAG_NAME, "th").text)
+                        val = clean_unicode(row.find_element(By.TAG_NAME, "td").text)
+                        if key and val and key not in SPEC_SKIP_KEYS and key not in specs:
+                            specs[key] = val
+                    except:
+                        continue
             except:
                 continue
-    except:
-        pass
+
+    # Fallback 2: detail bullets list
+    if not specs:
+        try:
+            items = driver.find_elements(By.XPATH, "//div[@id='detailBullets_feature_div']//li")
+            for item in items:
+                text = item.text.strip()
+                if ":" in text:
+                    parts = text.split(":", 1)
+                    key = clean_unicode(parts[0].strip())
+                    val = clean_unicode(parts[1].strip())
+                    if key and val and key not in SPEC_SKIP_KEYS:
+                        specs[key] = val
+        except:
+            pass
 
     return specs
 
-def extract_bullet_specs(driver):
+
+def extract_bullet_specs(driver) -> list:
     bullets = []
     try:
         items = driver.find_elements(
@@ -335,337 +357,278 @@ def extract_bullet_specs(driver):
         pass
     return bullets
 
-def scrape_product_page(driver, wait, url):
-    data = {}
+# ══════════════════════════════════════════════════════════════
+# PRICE EXTRACTION — multiple XPaths with proper in_stock logic
+# ══════════════════════════════════════════════════════════════
+
+# PRICE_XPATHS = [
+#     "//span[@class='a-price aok-align-center reinventPricePriceToPayMargin priceToPay apex-pricetopay-value']/span/span[2]",
+#     "//div[@id='corePriceDisplay_desktop_feature_div']//span[@class='a-offscreen']",
+#     "//div[@id='apex_desktop']//span[@class='a-offscreen']",
+#     "//span[@id='priceblock_ourprice']",
+#     "//span[@id='priceblock_dealprice']",
+#     "//span[@class='a-price-whole']",
+# ]
+
+PRICE_XPATHS = [
+    # Scoped to the buy box — cannot pull from "Consider these available items" strip
+    "//div[@id='corePriceDisplay_desktop_feature_div']//span[@class='a-price aok-align-center reinventPricePriceToPayMargin priceToPay apex-pricetopay-value']/span/span[2]",
+    "//div[@id='corePriceDisplay_desktop_feature_div']//span[@class='a-offscreen']",
+    "//div[@id='corePrice_feature_div']//span[@class='a-offscreen']",
+    "//div[@id='apex_desktop']//span[@class='a-offscreen']",
+    "//span[@id='priceblock_ourprice']",
+    "//span[@id='priceblock_dealprice']",
+]
+
+OUT_OF_STOCK_TEXTS = [
+    "currently unavailable.",
+    "temporarily out of stock.",
+    "we don't know when or if this item will be back in stock",
+]
+
+def extract_price(driver) -> int | None:
+    for xpath in PRICE_XPATHS:
+        try:
+            els = driver.find_elements(By.XPATH, xpath)
+            if els:
+                text = els[0].text.strip() or els[0].get_attribute("innerHTML").strip()
+                clean = re.sub(r"[^\d]", "", text)
+                if clean and int(clean) > 100:   # sanity check — no ₹1 prices
+                    return int(clean)
+        except:
+            continue
+    return None
+
+
+def is_out_of_stock(driver) -> bool:
+    # Check the actual availability element, not the whole page source.
     try:
-        driver.get(url)
-        time.sleep(3)
-
-        try:
-            title = wait.until(
-                EC.presence_of_element_located((By.XPATH, "//span[@id='productTitle']"))
-            ).text.strip()
-            data["name"] = title
-        except:
-            return None
-
-        if is_junk(data["name"]):
-            log.info(f"Skipped junk: {data['name']}")
-            return None
-
-        try:
-            brand = driver.find_element(By.ID, "bylineInfo").text
-            brand = brand.replace("Visit the ", "").replace(" Store", "").replace("Brand: ", "").strip()
-            data["brand"] = brand
-        except:
-            data["brand"] = None
-
-        try:
-            price_el = driver.find_elements(
-                By.XPATH,
-                "//span[@class='a-price aok-align-center reinventPricePriceToPayMargin priceToPay apex-pricetopay-value']/span/span[2]"
-            )
-            if price_el:
-                price_text = price_el[0].text.strip()
-                price_clean = re.sub(r"[^\d]", "", price_text)
-                data["price"] = int(price_clean) if price_clean else None
-            else:
-                data["price"] = None
-        except:
-            data["price"] = None
-
-        try:
-            rating_el = driver.find_element(By.XPATH, "//span[@id='acrPopover']")
-            rating_text = rating_el.get_attribute("title")
-            data["rating"] = float(rating_text.split(" ")[0]) if rating_text else None
-        except:
-            data["rating"] = None
-
-        try:
-            reviews_el = driver.find_element(
-                By.XPATH, "(//span[@id='acrCustomerReviewText'])[1]"
-            )
-            reviews = re.sub(r"[^\d]", "", reviews_el.text)
-            data["review_count"] = int(reviews) if reviews else None
-        except:
-            data["review_count"] = None
-
-        try:
-            img = driver.find_element(By.ID, "landingImage")
-            data["image_url"] = img.get_attribute("src")
-        except:
-            data["image_url"] = None
-
-        asin = get_asin(url)
-        data["amazon_asin"] = asin
-        data["affiliate_url"] = f"https://www.amazon.in/dp/{asin}?tag={AFFILIATE_TAG}" if asin else url
-        data["product_url"] = url
-        data["specs"] = extract_table_specs(driver)
-        data["bullets"] = extract_bullet_specs(driver)
-
-        return data
-
-    except Exception as e:
-        log.error(f"Error scraping {url}: {e}")
-        return None
-
-# ==============================
-# SUPABASE OPERATIONS
-# ==============================
-
-def update_price_by_asin(asin, price, rating, review_count):
+        avail = driver.find_element(By.ID, "availability").text.strip().lower()
+        if any(phrase in avail for phrase in OUT_OF_STOCK_TEXTS):
+            return True
+    except:
+        pass
+    # Secondary: explicit "currently unavailable" buy-box block
     try:
-        result = supabase.from_("products").select("id").eq("amazon_asin", asin).execute()
-        product_ids = [row["id"] for row in result.data or []]
-
-        for product_id in product_ids:
-            supabase.from_("products").update({
-                "in_stock": True,
-                "updated_at": datetime.utcnow().isoformat()
-            }).eq("id", product_id).execute()
-
-            supabase.from_("product_prices").update({
-                "price": price,
-                "last_updated": datetime.utcnow().isoformat()
-            }).eq("product_id", product_id).eq("platform", "amazon").execute()
-
-            if rating:
-                supabase.from_("product_reviews").update({
-                    "rating": rating,
-                    "review_count": review_count
-                }).eq("product_id", product_id).eq("platform", "amazon").execute()
-
-        log.info(f"  ✅ Price updated for {len(product_ids)} row(s) with ASIN {asin}: ₹{price}")
-
-    except Exception as e:
-        log.error(f"  ❌ Price update failed for ASIN {asin}: {e}")
+        driver.find_element(By.ID, "outOfStock")
+        return True
+    except:
+        pass
+    return False
 
 
-def insert_new_product(product, category):
+def is_captcha_page(driver) -> bool:
+    return "captcha" in driver.page_source.lower() or "robot check" in driver.page_source.lower()
+
+
+def is_page_not_found(driver) -> bool:
+    indicators = [
+        "page not found",
+        "we couldn't find that page",
+        "looking for something?",
+        "the web address you entered is not a functioning page",
+    ]
+    title = driver.title.lower()
+    if "page not found" in title:
+        return True
     try:
-        slug = make_slug(product["name"])
+        body = driver.find_element(By.TAG_NAME, "body").text.lower()
+        return any(ind in body for ind in indicators)
+    except:
+        return False
 
-        result = supabase.from_("products").insert({
-            "slug": slug,
-            "name": product["name"],
-            "brand": product.get("brand"),
-            "category": category,
-            "image_url": product.get("image_url"),
-            "amazon_asin": product.get("amazon_asin"),
-            "featured": False,
+def extract_rating(driver) -> tuple[float | None, int | None]:
+    rating, review_count = None, None
+    try:
+        el = driver.find_element(By.XPATH, "//span[@id='acrPopover']")
+        title = el.get_attribute("title") or ""
+        rating = float(title.split(" ")[0]) if title else None
+    except:
+        pass
+    try:
+        el = driver.find_element(By.XPATH, "(//span[@id='acrCustomerReviewText'])[1]")
+        reviews = re.sub(r"[^\d]", "", el.text)
+        review_count = int(reviews) if reviews else None
+    except:
+        pass
+    return rating, review_count
+
+# ══════════════════════════════════════════════════════════════
+# SUPABASE HELPERS
+# ══════════════════════════════════════════════════════════════
+
+def write_specs(product_id: int, specs: dict, bullets: list) -> int:
+    rows = []
+    for k, v in specs.items():
+        key = clean_unicode(k)[:200]
+        val = clean_unicode(v)[:1000]
+        if key and val:
+            rows.append({"product_id": product_id, "spec_key": key, "spec_value": val})
+    for i, b in enumerate(bullets):
+        if b and len(b) > 5:
+            rows.append({"product_id": product_id, "spec_key": f"feature_{i+1}", "spec_value": b[:1000]})
+
+    if rows:
+        chunk = 50
+        for i in range(0, len(rows), chunk):
+            supabase.from_("product_specs").insert(rows[i:i+chunk]).execute()
+    return len(rows)
+
+
+def upsert_price(product_id: int, price: int, affiliate_url: str):
+    # Check if price row exists
+    res = supabase.from_("product_prices").select("id").eq("product_id", product_id).eq("platform", "amazon").execute()
+    if res.data:
+        supabase.from_("product_prices").update({
+            "price": price,
+            "last_updated": datetime.utcnow().isoformat(),
+        }).eq("product_id", product_id).eq("platform", "amazon").execute()
+    else:
+        supabase.from_("product_prices").insert({
+            "product_id": product_id,
+            "platform": "amazon",
+            "price": price,
+            "affiliate_link": affiliate_url,
+            "last_updated": datetime.utcnow().isoformat(),
         }).execute()
 
-        if not result.data:
-            log.error(f"  ❌ Insert failed for {product['name']}")
-            return
 
-        product_id = result.data[0]["id"]
+def upsert_rating(product_id: int, rating: float, review_count: int | None):
+    res = supabase.from_("product_reviews").select("id").eq("product_id", product_id).eq("platform", "amazon").execute()
+    if res.data:
+        supabase.from_("product_reviews").update({
+            "rating": rating,
+            "review_count": review_count,
+        }).eq("product_id", product_id).eq("platform", "amazon").execute()
+    else:
+        supabase.from_("product_reviews").insert({
+            "product_id": product_id,
+            "platform": "amazon",
+            "rating": rating,
+            "review_count": review_count,
+        }).execute()
 
-        if product.get("price"):
-            supabase.from_("product_prices").insert({
-                "product_id": product_id,
-                "platform": "amazon",
-                "price": product["price"],
-                "affiliate_link": product.get("affiliate_url"),
-                "last_updated": datetime.utcnow().isoformat()
-            }).execute()
 
-        if product.get("rating"):
-            supabase.from_("product_reviews").insert({
-                "product_id": product_id,
-                "platform": "amazon",
-                "rating": product["rating"],
-                "review_count": product.get("review_count")
-            }).execute()
+def set_in_stock(product_id: int, in_stock: bool):
+    supabase.from_("products").update({
+        "in_stock": in_stock,
+        "updated_at": datetime.utcnow().isoformat(),
+    }).eq("id", product_id).execute()
 
-        if product.get("specs"):
-            spec_rows = [
-                {"product_id": product_id, "spec_key": k, "spec_value": v}
-                for k, v in product["specs"].items() if k and v
-            ]
-            if spec_rows:
-                supabase.from_("product_specs").insert(spec_rows).execute()
+# ══════════════════════════════════════════════════════════════
+# MODE 1: DAILY — price + rating update for all existing products
+# ══════════════════════════════════════════════════════════════
 
-        log.info(f"  ✅ New product inserted: {product['name']}")
+def run_daily(test: bool = False):
+    log.info("=" * 55)
+    log.info("DAILY MODE — Price + rating update")
+    log.info("=" * 55)
 
-    except Exception as e:
-        log.error(f"  ❌ Insert error: {e}")
-
-# ==============================
-# DAILY MODE — Update prices only
-# ==============================
-
-def run_daily_price_update():
-    log.info("=" * 50)
-    log.info("DAILY MODE — Updating prices for existing products")
-    log.info("=" * 50)
-
+    # Fetch all products with ASIN
     all_products = []
     page = 0
-    page_size = 1000
-
     while True:
-        result = supabase.from_("products").select(
-            "id, name, amazon_asin"
-        ).not_.is_("amazon_asin", "null").range(
-            page * page_size,
-            (page + 1) * page_size - 1
-        ).execute()
-
-        batch = result.data or []
+        res = supabase.from_("products").select("id, name, amazon_asin") \
+            .not_.is_("amazon_asin", "null") \
+            .range(page * BATCH_SIZE, (page + 1) * BATCH_SIZE - 1).execute()
+        batch = res.data or []
         all_products.extend(batch)
-        log.info(f"Fetched {len(all_products)} products so far...")
-
-        if len(batch) < page_size:
+        log.info(f"Fetched {len(all_products)} products...")
+        if len(batch) < BATCH_SIZE:
             break
         page += 1
 
     total = len(all_products)
-    log.info(f"Total products in DB: {total}")
+    log.info(f"Total products: {total}")
 
-    start_index = load_progress()
-    if start_index > 0:
-        log.info(f"⚠️  Resuming from product #{start_index + 1}")
+    # Resume support
+    progress = load_progress("daily")
+    last_done_id = progress.get("last_done_id", 0)
+    if last_done_id:
+        before = len(all_products)
+        all_products = [p for p in all_products if p["id"] > last_done_id]
+        log.info(f"Resuming — skipped {before - len(all_products)} already done")
 
-    products = all_products[start_index:]
-    log.info(f"Products to process: {len(products)} (starting from #{start_index + 1})")
-    log.info("-" * 50)
+    if test:
+        all_products = all_products[:5]
+        log.info("TEST MODE — 5 products only")
 
     driver = create_driver()
+    updated = skipped_oos = errors = 0
 
-    updated = 0
-    out_of_stock = 0
-    errors = 0
-    failed_products = []
-    updated_products = []
-
-    RESTART_EVERY = 200
-
-    for i, p in enumerate(products):
-        actual_index = start_index + i + 1
-        asin = p.get("amazon_asin")
-
-        if not asin:
-            continue
+    for i, p in enumerate(all_products):
+        asin = p["amazon_asin"]
+        url = f"https://www.amazon.in/dp/{asin}"
+        log.info("─" * 60)
+        log.info(f"[{i + 1}/{len(all_products)}] {p['name']}")
+        log.info(f"  URL: {url}")
 
         if i > 0 and i % RESTART_EVERY == 0:
-            log.info(f"🔄 Scheduled driver restart at product #{actual_index}")
             driver = restart_driver(driver)
 
-        url = f"https://www.amazon.in/dp/{asin}"
-        log.info(f"[{actual_index}/{total}] {p['name'][:60]}")
+        driver = ensure_session(driver)
 
         try:
             driver.get(url)
-            time.sleep(random.uniform(2, 5))
+            time.sleep(random.uniform(3, 5))
 
-            try:
-                _ = driver.current_url
-            except Exception as session_err:
-                log.warning(f"  ⚠️  Session lost ({session_err}), restarting driver...")
-                driver = restart_driver(driver)
-                driver.get(url)
-                time.sleep(random.uniform(3, 5))
+            if is_captcha_page(driver):
+                log.warning("  ⚠️  Captcha detected — sleeping 30s and skipping")
+                time.sleep(30)
+                errors += 1
+                save_progress({"mode": "daily", "last_done_id": p["id"]})
+                continue
 
-            price = None
-
-            unavailable = driver.find_elements(
-                By.XPATH,
-                "//span[contains(text(),'Currently unavailable')]"
-            )
-            if unavailable:
-                log.info(f"  ⚠️  Out of stock: {p['name'][:50]}")
-                supabase.from_("products").update({
-                    "in_stock": False,
-                    "updated_at": datetime.utcnow().isoformat()
-                }).eq("id", p["id"]).execute()
-                out_of_stock += 1
-                save_progress(actual_index)
-                failed_products.append({
-                    "index": actual_index,
-                    "name": p["name"],
-                    "asin": asin,
-                    "reason": "out_of_stock"
-                })
+            if is_page_not_found(driver):
+                log.info(f"  ⚠️  Page not found (dead ASIN) — marking out of stock")
+                set_in_stock(p["id"], False)
+                skipped_oos += 1
+                save_progress({"mode": "daily", "last_done_id": p["id"]})
                 time.sleep(random.uniform(2, 4))
                 continue
 
-            price_xpaths = [
-                "//span[@class='a-price aok-align-center reinventPricePriceToPayMargin priceToPay apex-pricetopay-value']/span/span[2]",
-                "//span[@class='a-price-whole']",
-                "//span[@id='priceblock_ourprice']",
-                "//span[@id='priceblock_dealprice']",
-                "//div[@id='apex_desktop']//span[@class='a-offscreen']",
-                "//div[@id='corePriceDisplay_desktop_feature_div']//span[@class='a-offscreen']",
-            ]
-            for xpath in price_xpaths:
-                price_el = driver.find_elements(By.XPATH, xpath)
-                if price_el:
-                    price_text = price_el[0].text.strip() or price_el[0].get_attribute("innerHTML").strip()
-                    price_clean = re.sub(r"[^\d]", "", price_text)
-                    if price_clean:
-                        price = int(price_clean)
-                        break
 
-            rating = None
-            review_count = None
-            try:
-                rating_el = driver.find_element(By.XPATH, "//span[@id='acrPopover']")
-                rating_text = rating_el.get_attribute("title")
-                rating = float(rating_text.split(" ")[0]) if rating_text else None
-                reviews_el = driver.find_element(
-                    By.XPATH, "(//span[@id='acrCustomerReviewText'])[1]"
-                )
-                reviews = re.sub(r"[^\d]", "", reviews_el.text)
-                review_count = int(reviews) if reviews else None
-            except:
-                pass
+
+            # Check availability FIRST — an unavailable product can still show
+            # prices in the "Consider these available items" strip (same price class).
+            if is_out_of_stock(driver):
+                log.info(f"  ⚠️  Out of stock")
+                set_in_stock(p["id"], False)
+                skipped_oos += 1
+                save_progress({"mode": "daily", "last_done_id": p["id"]})
+                time.sleep(random.uniform(2, 4))
+                continue
+
+            price = extract_price(driver)
 
             if price:
-                update_price_by_asin(asin, price, rating, review_count)
-                updated += 1
-                updated_products.append({
-                    "index": actual_index,
-                    "name": p["name"],
-                    "asin": asin,
-                    "price": price
-                })
-            else:
-                log.warning(f"  ⚠️  No price found — {p['name'][:50]}")
-                errors += 1
-                failed_products.append({
-                    "index": actual_index,
-                    "name": p["name"],
-                    "asin": asin,
-                    "reason": "no_price_found"
-                })
+                aff_url = f"https://www.amazon.in/dp/{asin}?tag={AFFILIATE_TAG}"
+                upsert_price(p["id"], price, aff_url)
+                set_in_stock(p["id"], True)
 
-            save_progress(actual_index)
+                rating, review_count = extract_rating(driver)
+                if rating:
+                    upsert_rating(p["id"], rating, review_count)
+
+                log.info(f"  Price: ₹{price:,}")
+                log.info(f"  Reviews: ⭐{rating} ({review_count} reviews)")
+                updated += 1
+            else:
+                # No price + not OOS = likely bot block. Leave in_stock unchanged.
+                log.warning(f"  ⚠️  No price found — in_stock unchanged")
+                errors += 1
+
+            save_progress({"mode": "daily", "last_done_id": p["id"]})
             time.sleep(random.uniform(2, 5))
 
         except Exception as e:
-            error_str = str(e)
-            log.error(f"  ❌ [{actual_index}/{total}] FAILED — {p['name'][:50]}")
-            log.error(f"  ❌ Error: {error_str[:150]}")
-
-            failed_products.append({
-                "index": actual_index,
-                "name": p["name"],
-                "asin": asin,
-                "reason": error_str[:100]
-            })
+            err = str(e)
+            log.error(f"  ❌ {err[:120]}")
             errors += 1
-            save_progress(actual_index)
-
-            if any(kw in error_str.lower() for kw in [
-                "invalid session", "session deleted", "no such window",
-                "chrome not reachable", "connection refused", "target closed"
-            ]):
-                log.warning("  🔄 Chrome crash detected — restarting driver")
+            save_progress({"mode": "daily", "last_done_id": p["id"]})
+            if any(kw in err.lower() for kw in ["invalid session", "session deleted", "no such window", "chrome not reachable"]):
                 driver = restart_driver(driver)
-
             time.sleep(random.uniform(3, 6))
-            continue
 
     try:
         driver.quit()
@@ -673,132 +636,379 @@ def run_daily_price_update():
         pass
 
     clear_progress()
+    log.info("=" * 55)
+    log.info(f"Daily complete — Updated: {updated} | OOS: {skipped_oos} | Errors: {errors}")
+    log.info("=" * 55)
 
-    log.info("=" * 50)
-    log.info(f"✅ Daily update complete")
-    log.info(f"   Total: {total} | Processed: {len(products)}")
-    log.info(f"   Updated: {updated} | Out of stock: {out_of_stock} | Errors: {errors}")
-    log.info("=" * 50)
+# ══════════════════════════════════════════════════════════════
+# MODE 2: SPECS — fill missing specs (backfill_specs logic)
+# ══════════════════════════════════════════════════════════════
 
-    report_file = os.path.join(LOGS_DIR, f"report_{datetime.now().strftime('%Y%m%d_%H%M')}.json")
-    with open(report_file, "w") as f:
-        json.dump({
-            "summary": {
-                "total": total,
-                "updated": updated,
-                "out_of_stock": out_of_stock,
-                "errors": errors
-            },
-            "failed": failed_products,
-            "updated": updated_products
-        }, f, indent=2)
-    log.info(f"📄 Report saved: {report_file}")
+def run_specs(category: str | None = None, test: bool = False):
+    log.info("=" * 55)
+    log.info("SPECS MODE — Fill missing product specs")
+    if category:
+        log.info(f"Category: {category}")
+    log.info("=" * 55)
 
-# ==============================
-# WEEKLY MODE — Add new products
-# ==============================
+    # Find products with no specs
+    log.info("Fetching product IDs that already have specs...")
+    has_specs_ids = set()
+    page = 0
+    while True:
+        res = supabase.from_("product_specs").select("product_id") \
+            .range(page * BATCH_SIZE, (page + 1) * BATCH_SIZE - 1).execute()
+        batch = res.data or []
+        for row in batch:
+            has_specs_ids.add(row["product_id"])
+        if len(batch) < BATCH_SIZE:
+            break
+        page += 1
 
-def run_weekly_new_products():
-    log.info("=" * 50)
-    log.info("WEEKLY MODE — Scraping new products")
-    log.info("=" * 50)
+    log.info(f"Products with specs already: {len(has_specs_ids)}")
 
-    # Resume support — skip already completed categories
-    completed_categories = load_weekly_progress()
-    if completed_categories:
-        log.info(f"⚠️  Resuming — already completed: {completed_categories}")
+    all_products = []
+    page = 0
+    while True:
+        q = supabase.from_("products").select("id, name, amazon_asin, category") \
+            .not_.is_("amazon_asin", "null")
+        if category:
+            q = q.eq("category", category)
+        res = q.range(page * BATCH_SIZE, (page + 1) * BATCH_SIZE - 1).execute()
+        batch = res.data or []
+        all_products.extend(batch)
+        if len(batch) < BATCH_SIZE:
+            break
+        page += 1
 
-    existing_asins = get_existing_asins()
-    existing_names = get_existing_names()
+    products = [p for p in all_products if p["id"] not in has_specs_ids]
+    log.info(f"Total: {len(all_products)} | Missing specs: {len(products)}")
+
+    # Resume support
+    progress = load_progress("specs")
+    last_done_id = progress.get("last_done_id", 0)
+    if last_done_id:
+        before = len(products)
+        products = [p for p in products if p["id"] > last_done_id]
+        log.info(f"Resuming — skipped {before - len(products)}")
+
+    if test:
+        products = products[:3]
+        log.info("TEST MODE — 3 products only")
 
     driver = create_driver()
-    wait = WebDriverWait(driver, 10)
+    filled = no_specs = errors = 0
 
-    total_new = 0
-    total_skipped = 0
-    total_junk = 0
+    for i, p in enumerate(products):
+        asin = p["amazon_asin"]
+        url = f"https://www.amazon.in/dp/{asin}"
+        log.info(f"[{i+1}/{len(products)}] {p['name'][:65]}")
 
-    for category, base_url in CATEGORIES.items():
+        if i > 0 and i % RESTART_EVERY == 0:
+            driver = restart_driver(driver)
 
-        # Skip already completed categories
-        if category in completed_categories:
-            log.info(f"⏭️  Skipping already completed: {category}")
-            continue
+        driver = ensure_session(driver)
 
-        log.info(f"\n{'='*30}")
-        log.info(f"Category: {category}")
+        try:
+            driver.get(url)
+            time.sleep(random.uniform(4, 6))
 
-        urls = scrape_category_urls(driver, category, base_url)
-        log.info(f"Found {len(urls)} URLs for {category}")
+            if is_captcha_page(driver):
+                log.warning("  ⚠️  Captcha — sleeping 30s")
+                time.sleep(30)
+                errors += 1
+                save_progress({"mode": "specs", "last_done_id": p["id"]})
+                continue
 
-        new_urls = [
-            url for url in urls
-            if get_asin(url) and get_asin(url) not in existing_asins
-        ]
-        log.info(f"New products to scrape: {len(new_urls)}")
+            if is_page_not_found(driver):
+                log.info(f"  ⚠️  Page not found (dead ASIN)")
+                no_specs += 1
+                save_progress({"mode": "specs", "last_done_id": p["id"]})
+                continue
+            # Scroll to trigger lazy-loaded spec tables (key from backfill_specs)
+            scroll_page(driver)
 
-        for url in new_urls:
-            asin = get_asin(url)
+            specs = extract_table_specs(driver)
+            bullets = extract_bullet_specs(driver)
 
-            # Check driver session alive
-            try:
-                _ = driver.current_url
-            except Exception:
-                log.warning("Session lost, restarting driver...")
+            if specs or bullets:
+                n = write_specs(p["id"], specs, bullets)
+                log.info(f"  ✅ {len(specs)} specs + {len(bullets)} bullets → {n} rows")
+                filled += 1
+            else:
+                log.info(f"  ⚠️  No specs found on page")
+                no_specs += 1
+
+            save_progress({"mode": "specs", "last_done_id": p["id"]})
+            time.sleep(random.uniform(2, 4))
+
+        except Exception as e:
+            err = str(e)
+            log.error(f"  ❌ {err[:120]}")
+            errors += 1
+            save_progress({"mode": "specs", "last_done_id": p["id"]})
+            if any(kw in err.lower() for kw in ["invalid session", "session deleted", "no such window", "chrome not reachable"]):
                 driver = restart_driver(driver)
-                wait = WebDriverWait(driver, 10)
-
-            product = scrape_product_page(driver, wait, url)
-
-            if not product:
-                total_junk += 1
-                continue
-
-            # Brand filter
-            if not is_known_brand(product.get("brand", "")):
-                log.info(f"  ⚠️ Unknown brand: {product.get('brand')} — {product['name'][:50]}")
-                total_skipped += 1
-                continue
-
-            # ✅ Duplicate name filter — skip if same name already in DB
-            product_name_lower = product["name"].lower().strip()
-            if product_name_lower in existing_names:
-                log.info(f"  ⚠️ Duplicate name skipped: {product['name'][:50]}")
-                total_skipped += 1
-                continue
-
-            insert_new_product(product, category)
-            existing_asins.add(asin)
-            existing_names.add(product_name_lower)
-            total_new += 1
-            time.sleep(3)
-
-        # ✅ Mark category as complete and save progress
-        completed_categories.append(category)
-        save_weekly_progress(completed_categories)
-        log.info(f"✅ Category complete: {category}")
+            time.sleep(random.uniform(3, 6))
 
     try:
         driver.quit()
     except:
         pass
 
-    clear_weekly_progress()
+    clear_progress()
+    log.info("=" * 55)
+    log.info(f"Specs complete — Filled: {filled} | No specs: {no_specs} | Errors: {errors}")
+    log.info("=" * 55)
 
-    log.info(f"\n✅ Weekly scrape complete")
-    log.info(f"   New: {total_new} | Skipped: {total_skipped} | Junk: {total_junk}")
+# ══════════════════════════════════════════════════════════════
+# MODE 3: WEEKLY — discover + insert new products
+# ══════════════════════════════════════════════════════════════
 
-# ==============================
-# MAIN
-# ==============================
+def scrape_category_urls(driver, category: str, base_url: str) -> list[str]:
+    log.info(f"Scraping URLs for: {category}")
+    urls = set()
+
+    for page_num in range(1, MAX_PAGES + 1):
+        page_url = f"{base_url}&page={page_num}"
+        try:
+            driver.get(page_url)
+            time.sleep(random.uniform(3, 5))
+
+            if is_captcha_page(driver):
+                log.warning(f"  Captcha on page {page_num} — stopping category")
+                break
+
+            products = driver.find_elements(By.XPATH, "//a[@class='a-link-normal s-no-outline']")
+            for p in products:
+                href = p.get_attribute("href")
+                if href and "th=" not in href:  # skip variant URLs
+                    clean = clean_url(href)
+                    if clean:
+                        urls.add(clean)
+
+            log.info(f"  Page {page_num}: {len(urls)} URLs so far")
+            time.sleep(random.uniform(2, 4))
+
+        except Exception as e:
+            log.error(f"  Error on page {page_num}: {e}")
+            continue
+
+    return list(urls)
+
+
+def scrape_new_product(driver, url: str) -> dict | None:
+    try:
+        driver.get(url)
+        time.sleep(random.uniform(3, 5))
+
+        if is_captcha_page(driver):
+            log.warning("  Captcha on product page")
+            return None
+
+        # Title
+        try:
+            title = WebDriverWait(driver, 8).until(
+                EC.presence_of_element_located((By.XPATH, "//span[@id='productTitle']"))
+            ).text.strip()
+        except:
+            return None
+
+        if is_junk(title):
+            return None
+
+        # Brand
+        brand = None
+        try:
+            brand_el = driver.find_element(By.ID, "bylineInfo")
+            brand = brand_el.text.replace("Visit the ", "").replace(" Store", "").replace("Brand: ", "").strip()
+        except:
+            pass
+
+        # Scroll before extracting specs
+        scroll_page(driver)
+
+        price = extract_price(driver)
+        rating, review_count = extract_rating(driver)
+        specs = extract_table_specs(driver)
+        bullets = extract_bullet_specs(driver)
+
+        image_url = None
+        try:
+            image_url = driver.find_element(By.ID, "landingImage").get_attribute("src")
+        except:
+            pass
+
+        asin = get_asin(url)
+
+        return {
+            "name": title,
+            "brand": brand,
+            "price": price,
+            "rating": rating,
+            "review_count": review_count,
+            "image_url": image_url,
+            "amazon_asin": asin,
+            "affiliate_url": f"https://www.amazon.in/dp/{asin}?tag={AFFILIATE_TAG}" if asin else url,
+            "specs": specs,
+            "bullets": bullets,
+        }
+
+    except Exception as e:
+        log.error(f"  Error scraping product: {e}")
+        return None
+
+
+def insert_new_product(product: dict, category: str) -> bool:
+    try:
+        slug = make_slug(product["name"])
+
+        res = supabase.from_("products").insert({
+            "slug": slug,
+            "name": product["name"],
+            "brand": product.get("brand"),
+            "category": category,
+            "image_url": product.get("image_url"),
+            "amazon_asin": product.get("amazon_asin"),
+            "in_stock": bool(product.get("price")),
+            "featured": False,
+        }).execute()
+
+        if not res.data:
+            log.error(f"  Insert failed for {product['name']}")
+            return False
+
+        product_id = res.data[0]["id"]
+        aff_url = product.get("affiliate_url", "")
+
+        if product.get("price"):
+            upsert_price(product_id, product["price"], aff_url)
+
+        if product.get("rating"):
+            upsert_rating(product_id, product["rating"], product.get("review_count"))
+
+        if product.get("specs") or product.get("bullets"):
+            write_specs(product_id, product.get("specs", {}), product.get("bullets", []))
+
+        log.info(f"  ✅ Inserted: {product['name'][:60]}")
+        return True
+
+    except Exception as e:
+        log.error(f"  Insert error: {e}")
+        return False
+
+
+def run_weekly(category: str | None = None, test: bool = False):
+    log.info("=" * 55)
+    log.info("WEEKLY MODE — Discover + insert new products")
+    log.info("=" * 55)
+
+    # Resume: track completed categories
+    progress = load_progress("weekly")
+    completed = progress.get("completed_categories", [])
+    if completed:
+        log.info(f"Resuming — already done: {completed}")
+
+    # Fetch existing ASINs and names to avoid duplicates
+    existing_asins = set()
+    existing_names = set()
+    page = 0
+    while True:
+        res = supabase.from_("products").select("amazon_asin, name") \
+            .range(page * BATCH_SIZE, (page + 1) * BATCH_SIZE - 1).execute()
+        batch = res.data or []
+        for row in batch:
+            if row.get("amazon_asin"):
+                existing_asins.add(row["amazon_asin"])
+            if row.get("name"):
+                existing_names.add(row["name"].lower().strip())
+        if len(batch) < BATCH_SIZE:
+            break
+        page += 1
+
+    log.info(f"Existing: {len(existing_asins)} ASINs, {len(existing_names)} names")
+
+    cats = {category: CATEGORIES[category]} if category else CATEGORIES
+    driver = create_driver()
+    total_new = total_skipped = total_junk = 0
+
+    for cat_name, base_url in cats.items():
+        if cat_name in completed:
+            log.info(f"⏭️  Skipping: {cat_name}")
+            continue
+
+        log.info(f"\n{'='*30}\nCategory: {cat_name}")
+
+        urls = scrape_category_urls(driver, cat_name, base_url)
+        new_urls = [u for u in urls if get_asin(u) and get_asin(u) not in existing_asins]
+        log.info(f"Found {len(urls)} URLs, {len(new_urls)} new")
+
+        if test:
+            new_urls = new_urls[:3]
+            log.info("TEST MODE — 3 products only")
+
+        for j, url in enumerate(new_urls):
+            asin = get_asin(url)
+            driver = ensure_session(driver)
+
+            if j > 0 and j % RESTART_EVERY == 0:
+                driver = restart_driver(driver)
+
+            product = scrape_new_product(driver, url)
+
+            if not product:
+                total_junk += 1
+                continue
+
+            if not is_known_brand(product.get("brand", "")):
+                log.info(f"  Unknown brand: {product.get('brand')} — skipped")
+                total_skipped += 1
+                continue
+
+            if product["name"].lower().strip() in existing_names:
+                log.info(f"  Duplicate name — skipped")
+                total_skipped += 1
+                continue
+
+            ok = insert_new_product(product, cat_name)
+            if ok:
+                existing_asins.add(asin)
+                existing_names.add(product["name"].lower().strip())
+                total_new += 1
+
+            time.sleep(random.uniform(2, 4))
+
+        completed.append(cat_name)
+        save_progress({"mode": "weekly", "completed_categories": completed})
+        log.info(f"✅ Category done: {cat_name}")
+
+    try:
+        driver.quit()
+    except:
+        pass
+
+    clear_progress()
+    log.info("=" * 55)
+    log.info(f"Weekly complete — New: {total_new} | Skipped: {total_skipped} | Junk: {total_junk}")
+    log.info("=" * 55)
+
+# ══════════════════════════════════════════════════════════════
+# ENTRY POINT
+# ══════════════════════════════════════════════════════════════
+
+VALID_MODES = {"daily", "specs", "weekly"}
+VALID_CATEGORIES = {"mobiles", "laptops", "tablets", "earphones", "accessories", "tvs", "smart_watches"}
 
 if __name__ == "__main__":
-    import sys
-    mode = sys.argv[1] if len(sys.argv) > 1 else "daily"
+    parser = argparse.ArgumentParser(description="Sync8 scraper")
+    parser.add_argument("mode", choices=VALID_MODES, help="daily | specs | weekly")
+    parser.add_argument("--category", choices=VALID_CATEGORIES, default=None, help="Limit to one category (weekly + specs only)")
+    parser.add_argument("--test", action="store_true", help="Run on small sample only")
+    args = parser.parse_args()
 
-    if mode == "daily":
-        run_daily_price_update()
-    elif mode == "weekly":
-        run_weekly_new_products()
-    else:
-        print("Usage: python scraper.py [daily|weekly]")
+    if args.mode == "daily":
+        run_daily(test=args.test)
+    elif args.mode == "specs":
+        run_specs(category=args.category, test=args.test)
+    elif args.mode == "weekly":
+        run_weekly(category=args.category, test=args.test)

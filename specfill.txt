@@ -1,6 +1,27 @@
-python backfill_specs.py tvs
+python scrapers/scraper.py daily --test for 3 products
 
-# Then in parallel in separate terminals
-python backfill_specs.py mobiles
-python backfill_specs.py laptops
-python backfill_specs.py earphones
+python scrapers/scraper.py specs --test specs for 3 products
+
+python scrapers/scraper.py specs --category mobiles --test category one by one
+
+python scrapers/scraper.py weekly --category mobiles --test weekly test
+
+----------------------------------------------------------------------------------------------------------------------------
+
+
+
+. Full daily (all ~4,539 products, prices)
+python scrapers/scraper.py daily
+
+
+
+ Full specs (only products missing specs)
+ python scrapers/scraper.py specs
+
+
+Full weekly (all categories, new products)
+python scrapers/scraper.py weekly
+
+
+
+----------------------------------------------------------------------------------------------------------------------------

@@ -2,7 +2,7 @@ name: Weekly New Products
 
 on:
   schedule:
-    - cron: '30 20 * * 0'  # 2:00 AM IST every Sunday
+    - cron: '30 20 * * 0'   # 2:00 AM IST every Sunday
   workflow_dispatch:
 
 jobs:
@@ -14,16 +14,20 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Install Chrome
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Chrome (latest stable, version auto-detected by scraper)
         run: |
-          wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
-          echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
-          sudo apt-get update
-          sudo apt-get install -y google-chrome-stable
+          wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          sudo apt install -y ./google-chrome-stable_current_amd64.deb
+          echo "Chrome version: $(google-chrome --version)"
 
       - name: Install Python dependencies
         run: |
-          pip install selenium undetected-chromedriver supabase python-dotenv requests beautifulsoup4
+          pip install selenium undetected-chromedriver supabase python-dotenv requests
 
       - name: Run weekly scraper
         env:
@@ -37,5 +41,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: weekly-scraper-logs-${{ github.run_number }}
+          name: weekly-logs-${{ github.run_number }}
           path: logs/
+          retention-days: 7
