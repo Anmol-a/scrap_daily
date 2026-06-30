@@ -1,5 +1,5 @@
 """
-sync8 scraper — v2
+sync8 scraper — v2 (shard-enabled)
 ==================
 Three modes in one file, all based on backfill_specs.py reliable foundations.
 
@@ -10,9 +10,16 @@ Usage:
   python scraper.py daily --test    # Run on 5 products only
   python scraper.py weekly --category mobiles   # One category only
 
+  # Sharding (daily + specs only) — for splitting a large run across parallel
+  # GitHub Actions matrix jobs so each job finishes well under the 6h cap:
+  python scraper.py daily --shard 0 --total-shards 6
+  python scraper.py daily --shard 1 --total-shards 6
+  ...
+  python scraper.py daily --shard 5 --total-shards 6
+
 All modes:
   - Auto-detect Chrome version (no hardcoded version_main)
-  - Resume support via progress JSON
+  - Resume support via progress JSON (shard-aware — each shard gets its own file)
   - Chrome restart every 150 products
   - Proper in_stock logic: only True when price found, False when unavailable text seen
   - Scrolls page before spec extraction (lazy-load fix from backfill_specs)
@@ -51,6 +58,8 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 LOGS_DIR = "logs"
 os.makedirs(LOGS_DIR, exist_ok=True)
 
+# These two are set for real inside __main__ once we know shard/total-shards,
+# so that parallel matrix jobs never write to the same log/progress file.
 LOG_FILE = os.path.join(LOGS_DIR, f"scraper_{datetime.now().strftime('%Y%m%d_%H%M')}.log")
 PROGRESS_FILE = os.path.join(LOGS_DIR, "progress.json")
 
@@ -150,6 +159,20 @@ def clear_progress():
         os.remove(PROGRESS_FILE)
     except:
         pass
+
+# ══════════════════════════════════════════════════════════════
+# SHARDING
+# ══════════════════════════════════════════════════════════════
+
+def apply_shard(products: list, shard: int, total_shards: int) -> list:
+    """
+    Round-robin split so each shard gets a mix of categories/brands rather
+    than one shard getting all mobiles and another all accessories — keeps
+    per-shard runtime more even.
+    """
+    if total_shards <= 1:
+        return products
+    return [p for i, p in enumerate(products) if i % total_shards == shard]
 
 # ══════════════════════════════════════════════════════════════
 # CHROME DRIVER — auto-detect version, no hardcoding
@@ -361,15 +384,6 @@ def extract_bullet_specs(driver) -> list:
 # PRICE EXTRACTION — multiple XPaths with proper in_stock logic
 # ══════════════════════════════════════════════════════════════
 
-# PRICE_XPATHS = [
-#     "//span[@class='a-price aok-align-center reinventPricePriceToPayMargin priceToPay apex-pricetopay-value']/span/span[2]",
-#     "//div[@id='corePriceDisplay_desktop_feature_div']//span[@class='a-offscreen']",
-#     "//div[@id='apex_desktop']//span[@class='a-offscreen']",
-#     "//span[@id='priceblock_ourprice']",
-#     "//span[@id='priceblock_dealprice']",
-#     "//span[@class='a-price-whole']",
-# ]
-
 PRICE_XPATHS = [
     # Scoped to the buy box — cannot pull from "Consider these available items" strip
     "//div[@id='corePriceDisplay_desktop_feature_div']//span[@class='a-price aok-align-center reinventPricePriceToPayMargin priceToPay apex-pricetopay-value']/span/span[2]",
@@ -519,9 +533,11 @@ def set_in_stock(product_id: int, in_stock: bool):
 # MODE 1: DAILY — price + rating update for all existing products
 # ══════════════════════════════════════════════════════════════
 
-def run_daily(test: bool = False):
+def run_daily(test: bool = False, shard: int = 0, total_shards: int = 1):
     log.info("=" * 55)
     log.info("DAILY MODE — Price + rating update")
+    if total_shards > 1:
+        log.info(f"Shard {shard}/{total_shards}")
     log.info("=" * 55)
 
     # Fetch all products with ASIN
@@ -538,8 +554,11 @@ def run_daily(test: bool = False):
             break
         page += 1
 
+    log.info(f"Total products (before sharding): {len(all_products)}")
+
+    all_products = apply_shard(all_products, shard, total_shards)
     total = len(all_products)
-    log.info(f"Total products: {total}")
+    log.info(f"This shard handles: {total} products")
 
     # Resume support
     progress = load_progress("daily")
@@ -644,11 +663,13 @@ def run_daily(test: bool = False):
 # MODE 2: SPECS — fill missing specs (backfill_specs logic)
 # ══════════════════════════════════════════════════════════════
 
-def run_specs(category: str | None = None, test: bool = False):
+def run_specs(category: str | None = None, test: bool = False, shard: int = 0, total_shards: int = 1):
     log.info("=" * 55)
     log.info("SPECS MODE — Fill missing product specs")
     if category:
         log.info(f"Category: {category}")
+    if total_shards > 1:
+        log.info(f"Shard {shard}/{total_shards}")
     log.info("=" * 55)
 
     # Find products with no specs
@@ -682,7 +703,10 @@ def run_specs(category: str | None = None, test: bool = False):
         page += 1
 
     products = [p for p in all_products if p["id"] not in has_specs_ids]
-    log.info(f"Total: {len(all_products)} | Missing specs: {len(products)}")
+    log.info(f"Total: {len(all_products)} | Missing specs (before sharding): {len(products)}")
+
+    products = apply_shard(products, shard, total_shards)
+    log.info(f"This shard handles: {len(products)}")
 
     # Resume support
     progress = load_progress("specs")
@@ -1004,11 +1028,25 @@ if __name__ == "__main__":
     parser.add_argument("mode", choices=VALID_MODES, help="daily | specs | weekly")
     parser.add_argument("--category", choices=VALID_CATEGORIES, default=None, help="Limit to one category (weekly + specs only)")
     parser.add_argument("--test", action="store_true", help="Run on small sample only")
+    parser.add_argument("--shard", type=int, default=0, help="This shard's index (0-based). daily + specs only.")
+    parser.add_argument("--total-shards", type=int, default=1, help="Total number of shards. daily + specs only.")
     args = parser.parse_args()
 
+    if args.total_shards > 1:
+        if args.mode == "weekly":
+            log.error("Sharding isn't supported for weekly mode — use --category to split it across jobs instead.")
+            sys.exit(1)
+        if not (0 <= args.shard < args.total_shards):
+            log.error(f"--shard must be between 0 and {args.total_shards - 1}")
+            sys.exit(1)
+
+        # Reassign progress/log file globals so parallel matrix jobs never collide.
+        PROGRESS_FILE = os.path.join(LOGS_DIR, f"progress_shard{args.shard}.json")
+        log.info(f"Progress file for this shard: {PROGRESS_FILE}")
+
     if args.mode == "daily":
-        run_daily(test=args.test)
+        run_daily(test=args.test, shard=args.shard, total_shards=args.total_shards)
     elif args.mode == "specs":
-        run_specs(category=args.category, test=args.test)
+        run_specs(category=args.category, test=args.test, shard=args.shard, total_shards=args.total_shards)
     elif args.mode == "weekly":
         run_weekly(category=args.category, test=args.test)

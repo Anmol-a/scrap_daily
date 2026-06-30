@@ -1,14 +1,18 @@
-name: Daily Price Update
+name: Daily Price Scraper
 
 on:
   schedule:
-    - cron: '30 0 * * *'   # 6:00 AM IST daily
+    - cron: '30 0 * * *'   # 6:00 AM IST = 00:30 UTC
   workflow_dispatch:
 
 jobs:
-  daily-scrape:
+  scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 240    # 4h hard stop per shard — safety margin under the 6h platform cap
+    strategy:
+      fail-fast: false      # one shard failing shouldn't cancel the others
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5]
 
     steps:
       - name: Checkout repo
@@ -29,18 +33,23 @@ jobs:
         run: |
           pip install selenium undetected-chromedriver supabase python-dotenv requests
 
-      - name: Run daily scraper
+      # Small random stagger so all 6 shards don't hit Amazon in the exact
+      # same second from 6 different IPs at job start.
+      - name: Stagger start
+        run: sleep $(( RANDOM % 120 ))
+
+      - name: Run daily scraper — shard ${{ matrix.shard }}
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           AFFILIATE_TAG: sync8in-21
         run: |
-          python3 scrapers/scraper.py daily
+          python3 scrapers/scraper.py daily --shard ${{ matrix.shard }} --total-shards 6
 
       - name: Upload logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: daily-logs-${{ github.run_number }}
+          name: daily-logs-shard-${{ matrix.shard }}-${{ github.run_number }}
           path: logs/
           retention-days: 7

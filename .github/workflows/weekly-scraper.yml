@@ -1,46 +1,49 @@
-name: Weekly New Products
+name: Weekly Spec Backfill
 
 on:
   schedule:
-    - cron: '30 20 * * 0'   # 2:00 AM IST every Sunday
+    - cron: '30 21 * * 6'   # Sun 3:00 AM IST = Sat 21:30 UTC
   workflow_dispatch:
 
 jobs:
-  weekly-scrape:
+  fill-specs:
     runs-on: ubuntu-latest
-    timeout-minutes: 480
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2]
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.11'
 
-      - name: Install Chrome (latest stable, version auto-detected by scraper)
+      - name: Install Chrome
         run: |
-          wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-          sudo apt install -y ./google-chrome-stable_current_amd64.deb
-          echo "Chrome version: $(google-chrome --version)"
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
 
       - name: Install Python dependencies
-        run: |
-          pip install selenium undetected-chromedriver supabase python-dotenv requests
+        run: pip install -r requirements.txt
 
-      - name: Run weekly scraper
+      - name: Stagger start
+        run: sleep $(( RANDOM % 120 ))
+
+      - name: Run specs backfill — shard ${{ matrix.shard }}
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           AFFILIATE_TAG: sync8in-21
         run: |
-          python3 scrapers/scraper.py weekly
+          python scrapers/scraper.py specs --shard ${{ matrix.shard }} --total-shards 3
 
       - name: Upload logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: weekly-logs-${{ github.run_number }}
+          name: specs-logs-shard-${{ matrix.shard }}
           path: logs/
           retention-days: 7
