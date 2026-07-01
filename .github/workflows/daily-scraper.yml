@@ -25,8 +25,8 @@ jobs:
 
       - name: Install Chrome (latest stable, version auto-detected by scraper)
         run: |
-          wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-          sudo apt install -y ./google-chrome-stable_current_amd64.deb
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
           echo "Chrome version: $(google-chrome --version)"
 
       - name: Install Python dependencies
