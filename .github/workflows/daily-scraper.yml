@@ -8,9 +8,9 @@ on:
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 240    # 4h hard stop per shard — safety margin under the 6h platform cap
+    timeout-minutes: 240
     strategy:
-      fail-fast: false      # one shard failing shouldn't cancel the others
+      fail-fast: false
       matrix:
         shard: [0, 1, 2, 3, 4, 5]
 
@@ -23,19 +23,15 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install Chrome (latest stable, force fresh)
+      - name: Install system dependencies (for headless Chrome)
         run: |
           sudo apt-get update
-          sudo apt-get remove -y google-chrome-stable chromium-browser chromium 2>/dev/null || true
-          sudo apt-get install -y google-chrome-stable
-          echo "Chrome version: $(google-chrome --version)"
+          sudo apt-get install -y xvfb libxss1 libappindicator1 libindicator7 fonts-liberation libnss3 libgconf-2-4
 
       - name: Install Python dependencies
         run: |
           pip install selenium undetected-chromedriver supabase python-dotenv requests
 
-      # Small random stagger so all 6 shards don't hit Amazon in the exact
-      # same second from 6 different IPs at job start.
       - name: Stagger start
         run: sleep $(( RANDOM % 120 ))
 
