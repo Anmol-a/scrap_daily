@@ -140,6 +140,18 @@ SPEC_SKIP_KEYS = {
 # PROGRESS
 # ══════════════════════════════════════════════════════════════
 
+def log_run_summary(mode, shard, total_shards, updated, oos, errors, duration, status):
+    try:
+        supabase.from_("scraper_runs").insert({
+            "mode": mode, "shard": shard, "total_shards": total_shards,
+            "updated": updated, "skipped_oos": oos, "errors": errors,
+            "duration_seconds": int(duration), "status": status,
+        }).execute()
+    except Exception as e:
+        log.error(f"Failed to log run summary: {e}")
+
+
+
 def save_progress(data: dict):
     with open(PROGRESS_FILE, "w") as f:
         json.dump({**data, "ts": datetime.utcnow().isoformat()}, f)
@@ -185,6 +197,7 @@ def get_chrome_version() -> int | None:
         ["google-chrome-stable", "--version"],
         ["chromium-browser", "--version"],
         ["chromium", "--version"],
+        ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "--version"],
     ]
     for cmd in cmds:
         try:
@@ -212,6 +225,10 @@ def create_driver() -> uc.Chrome:
     opts.add_argument("--disable-extensions")
     opts.add_argument("--disable-infobars")
     opts.add_argument("--lang=en-IN")
+    opts.add_experimental_option("prefs", {
+        "profile.managed_default_content_settings.images": 2,
+        "profile.default_content_setting_values.notifications": 2,
+    })
 
     # Random user agent from a curated list
     ua_list = [
@@ -603,7 +620,7 @@ def run_daily(test: bool = False, shard: int = 0, total_shards: int = 1):
                 set_in_stock(p["id"], False)
                 skipped_oos += 1
                 save_progress({"mode": "daily", "last_done_id": p["id"]})
-                time.sleep(random.uniform(2, 4))
+                time.sleep(random.uniform(1, 2))
                 continue
 
 
@@ -615,7 +632,7 @@ def run_daily(test: bool = False, shard: int = 0, total_shards: int = 1):
                 set_in_stock(p["id"], False)
                 skipped_oos += 1
                 save_progress({"mode": "daily", "last_done_id": p["id"]})
-                time.sleep(random.uniform(2, 4))
+                time.sleep(random.uniform(1, 2))
                 continue
 
             price = extract_price(driver)
@@ -654,6 +671,8 @@ def run_daily(test: bool = False, shard: int = 0, total_shards: int = 1):
     except:
         pass
 
+    log_run_summary("daily", shard, total_shards, updated, skipped_oos, errors,
+                    time.time() - start_time, "success" if errors < total * 0.3 else "degraded")
     clear_progress()
     log.info("=" * 55)
     log.info(f"Daily complete — Updated: {updated} | OOS: {skipped_oos} | Errors: {errors}")

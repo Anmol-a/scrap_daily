@@ -47,3 +47,14 @@ jobs:
           name: specs-logs-shard-${{ matrix.shard }}
           path: logs/
           retention-days: 7
+
+  notify-failure:
+    needs: fill-specs
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Telegram alert
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d text="❌ sync8 weekly spec backfill failed — run ${{ github.run_number }}. https://github.com/Anmol-a/scrap_daily/actions/runs/${{ github.run_id }}"

@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3, 4, 5]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
 
     steps:
       - name: Checkout repo
@@ -41,7 +41,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           AFFILIATE_TAG: sync8in-21
         run: |
-          python3 scrapers/scraper.py daily --shard ${{ matrix.shard }} --total-shards 6
+          python3 scrapers/scraper.py daily --shard ${{ matrix.shard }} --total-shards 15
 
       - name: Upload logs
         if: always()
@@ -50,3 +50,14 @@ jobs:
           name: daily-logs-shard-${{ matrix.shard }}-${{ github.run_number }}
           path: logs/
           retention-days: 7
+
+  notify-failure:
+    needs: scrape
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Telegram alert
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d text="❌ sync8 daily scraper failed — run ${{ github.run_number }}. https://github.com/Anmol-a/scrap_daily/actions/runs/${{ github.run_id }}"
