@@ -42,6 +42,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from supabase import create_client
+import signal
+
 
 # ══════════════════════════════════════════════════════════════
 # SETUP
@@ -250,13 +252,39 @@ def create_driver() -> uc.Chrome:
 
 
 def restart_driver(driver) -> uc.Chrome:
+    # Try graceful quit first, but don't trust it
+    old_pid = None
+    try:
+        old_pid = driver.browser_pid  # underlying Chrome process PID
+    except:
+        pass
+
     try:
         driver.quit()
     except:
         pass
+
+    # Force-kill if quit() didn't actually terminate it
+    if old_pid:
+        try:
+            os.kill(old_pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass  # already dead, fine
+        except:
+            pass
+
     time.sleep(5)
     log.info("Restarting Chrome driver...")
-    return create_driver()
+
+    # Retry driver creation with backoff instead of letting it kill the whole run
+    for attempt in range(3):
+        try:
+            return create_driver()
+        except Exception as e:
+            log.warning(f"create_driver() failed (attempt {attempt+1}/3): {e}")
+            time.sleep(10 * (attempt + 1))
+
+    raise RuntimeError("create_driver() failed after 3 attempts — giving up")
 
 
 def ensure_session(driver) -> uc.Chrome:
