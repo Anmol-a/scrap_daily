@@ -619,6 +619,7 @@ def run_daily(test: bool = False, shard: int = 0, total_shards: int = 1):
 
     driver = create_driver()
     updated = skipped_oos = errors = 0
+    start_time = time.time()
 
     for i, p in enumerate(all_products):
         asin = p["amazon_asin"]
