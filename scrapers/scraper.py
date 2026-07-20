@@ -411,11 +411,30 @@ def extract_table_specs(driver) -> dict:
 
 
 def extract_bullet_specs(driver) -> list:
+    """
+    Extracts the feature-bullet list from a product page.
+
+    Bug fixed (July 2026): the old XPath used @class='a-list-item', an EXACT
+    string match. Amazon often renders these spans with extra classes
+    (e.g. class="a-list-item a-size-base a-color-base"), which silently
+    fails an exact match — find_elements just returns [], no exception,
+    nothing logged. This under-scraped ~1,264 products (mostly major-brand
+    listings: Apple, Samsung, OnePlus, Lenovo, HP, Boat), while image/price
+    extraction — which uses different selectors — worked fine on the same
+    pages, making the gap easy to miss.
+
+    Fix: match on the class being PRESENT among possibly-multiple classes,
+    using a padded contains() so 'a-list-item' doesn't accidentally match
+    a longer class name like 'a-list-item-extra'. Falls back to the
+    original selector as well, in case any page still has the bare form.
+    """
     bullets = []
     try:
         items = driver.find_elements(
             By.XPATH,
-            "//div[@id='feature-bullets']//li//span[@class='a-list-item']"
+            "//div[@id='feature-bullets']//li//span["
+            "contains(concat(' ', normalize-space(@class), ' '), ' a-list-item ')"
+            "]"
         )
         for item in items:
             text = item.text.strip()
@@ -423,6 +442,19 @@ def extract_bullet_specs(driver) -> list:
                 bullets.append(text)
     except:
         pass
+
+    # Fallback: some templates wrap the bullet text one level up, directly
+    # in the <li>, with no inner span at all.
+    if not bullets:
+        try:
+            lis = driver.find_elements(By.XPATH, "//div[@id='feature-bullets']//li")
+            for li in lis:
+                text = li.text.strip()
+                if text and len(text) > 5:
+                    bullets.append(text)
+        except:
+            pass
+
     return bullets
 
 # ══════════════════════════════════════════════════════════════
