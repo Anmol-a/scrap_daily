@@ -966,6 +966,18 @@ def scrape_new_product(driver, url: str) -> dict | None:
 def insert_new_product(product: dict, category: str) -> bool:
     try:
         slug = make_slug(product["name"])
+        asin = product.get("amazon_asin")
+
+        # DB-level guard: re-check right before insert. The caller's in-memory
+        # existing_asins set is only as fresh as the start of the run, so this
+        # catches races with concurrent scraper runs (e.g. daily shard vs
+        # weekly discovery) and same-run duplicate listings that slipped past
+        # the initial filter.
+        if asin:
+            dupe = supabase.from_("products").select("id").eq("amazon_asin", asin).execute()
+            if dupe.data:
+                log.info(f"  Duplicate ASIN {asin} already in DB — skipped")
+                return False
 
         res = supabase.from_("products").insert({
             "slug": slug,
@@ -1053,6 +1065,16 @@ def run_weekly(category: str | None = None, test: bool = False):
 
         for j, url in enumerate(new_urls):
             asin = get_asin(url)
+
+            # Re-check against the in-memory set, not just the one-time filter
+            # used to build new_urls. Catches the same ASIN appearing twice on
+            # a category page (e.g. sponsored + organic placement) within a
+            # single run.
+            if asin and asin in existing_asins:
+                log.info(f"  Duplicate ASIN {asin} already seen this run — skipped")
+                total_skipped += 1
+                continue
+
             driver = ensure_session(driver)
 
             if j > 0 and j % RESTART_EVERY == 0:
