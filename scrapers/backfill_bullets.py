@@ -179,6 +179,60 @@ def run_backfill(test: bool = False, shard: int = 0, total_shards: int = 1):
     fixed_count = still_empty = errors = 0
     start_time = time.time()
 
+    # for i, p in enumerate(products):
+    #     asin = p["amazon_asin"]
+    #     url = f"https://www.amazon.in/dp/{asin}"
+    #     log.info("─" * 60)
+    #     log.info(f"[{i + 1}/{len(products)}] {p['name'][:65]}")
+    #     log.info(f"  URL: {url}")
+    #
+    #     if i > 0 and i % RESTART_EVERY == 0:
+    #         driver = restart_driver(driver)
+    #
+    #     driver = ensure_session(driver)
+    #
+    #     try:
+    #         driver.get(url)
+    #         time.sleep(random.uniform(4, 6))
+    #
+    #         if is_captcha_page(driver):
+    #             log.warning("  ⚠️  Captcha detected — sleeping 30s and skipping")
+    #             time.sleep(30)
+    #             errors += 1
+    #             save_progress(p["id"])
+    #             continue
+    #
+    #         if is_page_not_found(driver):
+    #             log.info("  ⚠️  Page not found (dead ASIN) — skipping")
+    #             still_empty += 1
+    #             save_progress(p["id"])
+    #             continue
+    #
+    #         scroll_page(driver)
+    #         bullets = extract_bullet_specs(driver)
+    #
+    #         if bullets:
+    #             n = write_specs(p["id"], {}, bullets)
+    #             log.info(f"  ✅ Recovered {len(bullets)} bullets → {n} rows written")
+    #             fixed_count += 1
+    #         else:
+    #             log.info("  ⚠️  Still no bullets on this page — likely a genuinely bullet-less listing")
+    #             still_empty += 1
+    #
+    #         save_progress(p["id"])
+    #         time.sleep(random.uniform(2, 4))
+    #
+    #     except Exception as e:
+    #         err = str(e)
+    #         log.error(f"  ❌ {err[:120]}")
+    #         errors += 1
+    #         save_progress(p["id"])
+    #         if any(
+    #             kw in err.lower()
+    #             for kw in ["invalid session", "session deleted", "no such window", "chrome not reachable"]
+    #         ):
+    #             driver = restart_driver(driver)
+    #         time.sleep(random.uniform(3, 6))
     for i, p in enumerate(products):
         asin = p["amazon_asin"]
         url = f"https://www.amazon.in/dp/{asin}"
@@ -191,55 +245,89 @@ def run_backfill(test: bool = False, shard: int = 0, total_shards: int = 1):
 
         driver = ensure_session(driver)
 
-        try:
-            driver.get(url)
-            time.sleep(random.uniform(4, 6))
+        # Transient network errors (connection reset/aborted, remote disconnect,
+        # read timeout) get a few quick retries before being counted as a real
+        # error — these are Hetzner-side flakiness, not a page/content problem,
+        # so retrying the same URL a couple times often just works.
+        CONNECTION_ERROR_KEYWORDS = [
+            "remote end closed connection",
+            "connection aborted",
+            "connection reset",
+            "read timed out",
+            "connectionerror",
+            "max retries exceeded",
+        ]
+        MAX_CONNECTION_RETRIES = 3
+        attempt = 0
 
-            if is_captcha_page(driver):
-                log.warning("  ⚠️  Captcha detected — sleeping 30s and skipping")
-                time.sleep(30)
+        while True:
+            attempt += 1
+            try:
+                driver.get(url)
+                time.sleep(random.uniform(4, 6))
+
+                if is_captcha_page(driver):
+                    log.warning("  ⚠️  Captcha detected — sleeping 30s and skipping")
+                    time.sleep(30)
+                    errors += 1
+                    save_progress(p["id"])
+                    break
+
+                if is_page_not_found(driver):
+                    log.info("  ⚠️  Page not found (dead ASIN) — skipping")
+                    still_empty += 1
+                    save_progress(p["id"])
+                    break
+
+                scroll_page(driver)
+                bullets = extract_bullet_specs(driver)
+
+                if bullets:
+                    n = write_specs(p["id"], {}, bullets)
+                    log.info(f"  ✅ Recovered {len(bullets)} bullets → {n} rows written")
+                    fixed_count += 1
+                else:
+                    log.info("  ⚠️  Still no bullets on this page — likely a genuinely bullet-less listing")
+                    still_empty += 1
+
+                save_progress(p["id"])
+                time.sleep(random.uniform(2, 4))
+                break
+
+            except Exception as e:
+                err = str(e)
+                is_connection_error = any(kw in err.lower() for kw in CONNECTION_ERROR_KEYWORDS)
+
+                if is_connection_error and attempt < MAX_CONNECTION_RETRIES:
+                    backoff = attempt * 5 + random.uniform(0, 3)
+                    log.warning(
+                        f"  🔁 Connection error (attempt {attempt}/{MAX_CONNECTION_RETRIES}) — "
+                        f"retrying in {backoff:.1f}s: {err[:100]}"
+                    )
+                    time.sleep(backoff)
+                    driver = ensure_session(driver)
+                    continue
+
+                log.error(f"  ❌ {err[:120]}" + (f" (gave up after {attempt} attempts)" if attempt > 1 else ""))
                 errors += 1
                 save_progress(p["id"])
-                continue
-
-            if is_page_not_found(driver):
-                log.info("  ⚠️  Page not found (dead ASIN) — skipping")
-                still_empty += 1
-                save_progress(p["id"])
-                continue
-
-            scroll_page(driver)
-            bullets = extract_bullet_specs(driver)
-
-            if bullets:
-                n = write_specs(p["id"], {}, bullets)
-                log.info(f"  ✅ Recovered {len(bullets)} bullets → {n} rows written")
-                fixed_count += 1
-            else:
-                log.info("  ⚠️  Still no bullets on this page — likely a genuinely bullet-less listing")
-                still_empty += 1
-
-            save_progress(p["id"])
-            time.sleep(random.uniform(2, 4))
-
-        except Exception as e:
-            err = str(e)
-            log.error(f"  ❌ {err[:120]}")
-            errors += 1
-            save_progress(p["id"])
-            if any(
-                kw in err.lower()
-                for kw in ["invalid session", "session deleted", "no such window", "chrome not reachable"]
-            ):
-                driver = restart_driver(driver)
-            time.sleep(random.uniform(3, 6))
-
+                if any(
+                        kw in err.lower()
+                        for kw in ["invalid session", "session deleted", "no such window", "chrome not reachable"]
+                ):
+                    driver = restart_driver(driver)
+                time.sleep(random.uniform(3, 6))
+                break
     try:
         driver.quit()
     except Exception:
         pass
 
     duration = time.time() - start_time
+    hours, rem = divmod(int(duration), 3600)
+    minutes, seconds = divmod(rem, 60)
+    duration_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
     log_run_summary(
         "bullet_backfill", shard, total_shards, fixed_count, still_empty, errors,
         duration, "success" if errors < len(products) * 0.3 else "degraded",
@@ -247,6 +335,7 @@ def run_backfill(test: bool = False, shard: int = 0, total_shards: int = 1):
     clear_progress()
     log.info("=" * 55)
     log.info(f"Backfill complete — Fixed: {fixed_count} | Still empty: {still_empty} | Errors: {errors}")
+    log.info(f"Total time taken: {duration_str} (HH:MM:SS)")
     log.info(f"Log file: {BACKFILL_LOG_FILE}")
     log.info("=" * 55)
 
