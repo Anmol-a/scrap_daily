@@ -132,6 +132,34 @@ JUNK_KEYWORDS = [
     "power tablet for men", "stamina tablet", "strength tablet",
 ]
 
+# Non-brand context words that must be present for a product to belong in a
+# given Amazon category page. Brand whitelisting alone isn't enough — Amazon's
+# category pages (e.g. smart_watches) mix in adjacent non-electronics items
+# (analog watches, motorcycle accessories, etc.) from whitelisted or
+# near-matching brand names. This is a lightweight second gate, not a full
+# classifier: title + specs + bullets text is checked for at least one signal
+# keyword before the product is accepted into that category.
+CATEGORY_SIGNAL_KEYWORDS = {
+    "smart_watches": [
+        "smartwatch", "smart watch", "bluetooth calling", "sim calling",
+        "amoled display", "spo2", "heart rate monitor", "fitness tracker",
+        "always-on display", "gps watch", "hd calling",
+    ],
+}
+
+# Non-electronics context words. Unlike CATEGORY_SIGNAL_KEYWORDS (positive
+# allowlist), these are checked as an EXCLUSION across every category,
+# because positive terms like "screen guard" or "case" are shared vocabulary
+# between phone accessories and vehicle/other accessories (e.g. a motorcycle
+# tank "screen guard" reads identically to a phone screen guard by keyword
+# alone — only the vehicle-brand/context words actually distinguish them).
+NON_ELECTRONICS_EXCLUDE = [
+    "royal enfield", "motorcycle", "motorbike", "scooter", "bajaj",
+    "hero motocorp", "yamaha bike", "ktm bike", "activa", "tvs apache",
+    "bike accessories", "helmet", "car dashboard", "car seat cover",
+    "cycle", "bicycle",
+]
+
 SPEC_SKIP_KEYS = {
     "Customer Reviews", "Best Sellers Rank", "ASIN",
     "Manufacturer Contact Information", "Importer Contact Information",
@@ -331,7 +359,45 @@ def is_known_brand(brand: str | None) -> bool:
     if not brand:
         return False
     b = brand.lower().strip()
-    return any(known in b or b in known for known in BRAND_WHITELIST)
+    # Exact match against the whole cleaned brand string, or exact match of
+    # any individual word in it (handles "Xiaomi India" -> "xiaomi"). This
+    # replaces the old `known in b or b in known` substring check, which let
+    # short whitelist entries like "mi", "lg", "vu" match as a substring of
+    # almost any unrelated brand/seller name (e.g. "Royal Enfield" style
+    # false positives slipping through on partial text matches).
+    if b in BRAND_WHITELIST:
+        return True
+    words = re.findall(r"[a-z0-9]+", b)
+    return any(w in BRAND_WHITELIST for w in words)
+
+
+def matches_category_signal(category: str, title: str, specs: dict | None = None, bullets: list | None = None) -> bool:
+    """Second gate beyond brand whitelisting: does this product's own text
+    actually signal it belongs in `category`? Categories without a defined
+    keyword list (mobiles, laptops, tablets, earphones, tvs) pass through
+    unchanged — this only tightens the two categories known to leak
+    unrelated items (smart_watches, accessories)."""
+    signals = CATEGORY_SIGNAL_KEYWORDS.get(category)
+    if not signals:
+        return True
+    text = (title or "").lower()
+    if specs:
+        text += " " + " ".join(f"{k} {v}" for k, v in specs.items()).lower()
+    if bullets:
+        text += " " + " ".join(str(x) for x in bullets).lower()
+    return any(sig in text for sig in signals)
+
+
+def is_non_electronics(title: str, specs: dict | None = None, bullets: list | None = None) -> bool:
+    """Catches vehicle/other non-electronics items that pass the brand
+    whitelist and category-signal check on keyword overlap alone (e.g. a
+    motorcycle screen guard vs. a phone screen guard)."""
+    text = (title or "").lower()
+    if specs:
+        text += " " + " ".join(f"{k} {v}" for k, v in specs.items()).lower()
+    if bullets:
+        text += " " + " ".join(str(x) for x in bullets).lower()
+    return any(kw in text for kw in NON_ELECTRONICS_EXCLUDE)
 
 def clean_unicode(s: str) -> str:
     return s.replace("\u200f", "").replace("\u200e", "").replace("\u00a0", " ").strip()
@@ -483,9 +549,18 @@ def extract_price(driver) -> int | None:
             els = driver.find_elements(By.XPATH, xpath)
             if els:
                 text = els[0].text.strip() or els[0].get_attribute("innerHTML").strip()
-                clean = re.sub(r"[^\d]", "", text)
-                if clean and int(clean) > 100:   # sanity check — no ₹1 prices
-                    return int(clean)
+                # Amazon prices render as e.g. "₹1,24,900.00" or "₹99.00". The old
+                # `re.sub(r"[^\d]", "", text)` stripped every non-digit character
+                # INCLUDING the decimal point, so "99.00" became "9900" and
+                # "88.00" became "8800" — a silent 100x inflation on any price
+                # with paise/cents shown. Strip thousands-separator commas first,
+                # then take only the integer-rupee part before a decimal point.
+                no_commas = text.replace(",", "")
+                match = re.search(r"(\d+)(?:\.\d+)?", no_commas)
+                if match:
+                    price = int(match.group(1))
+                    if price > 10:   # sanity floor — reject stray single-digit noise, not real sub-100 prices
+                        return price
         except:
             continue
     return None
@@ -1088,6 +1163,16 @@ def run_weekly(category: str | None = None, test: bool = False):
 
             if not is_known_brand(product.get("brand", "")):
                 log.info(f"  Unknown brand: {product.get('brand')} — skipped")
+                total_skipped += 1
+                continue
+
+            if not matches_category_signal(cat_name, product["name"], product.get("specs"), product.get("bullets")):
+                log.info(f"  No {cat_name} signal in title/specs — skipped: {product['name'][:60]}")
+                total_skipped += 1
+                continue
+
+            if is_non_electronics(product["name"], product.get("specs"), product.get("bullets")):
+                log.info(f"  Non-electronics context detected — skipped: {product['name'][:60]}")
                 total_skipped += 1
                 continue
 
