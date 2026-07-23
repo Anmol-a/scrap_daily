@@ -528,13 +528,24 @@ def extract_bullet_specs(driver) -> list:
 # ══════════════════════════════════════════════════════════════
 
 PRICE_XPATHS = [
-    # Scoped to the buy box — cannot pull from "Consider these available items" strip
-    "//div[@id='corePriceDisplay_desktop_feature_div']//span[@class='a-price aok-align-center reinventPricePriceToPayMargin priceToPay apex-pricetopay-value']/span/span[2]",
+    # a-offscreen spans render Amazon's price as a single well-formed text
+    # node (e.g. "₹99.00") for screen readers — this is the reliable source.
+    # Tried FIRST, ahead of the visually-split whole/fraction markup below.
     "//div[@id='corePriceDisplay_desktop_feature_div']//span[@class='a-offscreen']",
     "//div[@id='corePrice_feature_div']//span[@class='a-offscreen']",
     "//div[@id='apex_desktop']//span[@class='a-offscreen']",
     "//span[@id='priceblock_ourprice']",
     "//span[@id='priceblock_dealprice']",
+    # LAST RESORT ONLY: the visible buy-box price wrapper. Amazon renders the
+    # rupees and paise as SEPARATE spans (a-price-whole / a-price-fraction)
+    # with the "." drawn by CSS, not a real text character. Reading .text on
+    # the parent therefore concatenates them with no decimal at all — e.g.
+    # "99" + "00" -> "9900" — a 100x inflation that looks identical to the
+    # already-fixed decimal-stripping bug but has a different cause and
+    # can't be recovered from the text alone. Marked with a sentinel suffix
+    # so extract_price() knows to reconstruct it from sub-spans instead of
+    # trusting the concatenated text.
+    "SPLIT::" + "//div[@id='corePriceDisplay_desktop_feature_div']//span[@class='a-price aok-align-center reinventPricePriceToPayMargin priceToPay apex-pricetopay-value']",
 ]
 
 OUT_OF_STOCK_TEXTS = [
@@ -546,21 +557,39 @@ OUT_OF_STOCK_TEXTS = [
 def extract_price(driver) -> int | None:
     for xpath in PRICE_XPATHS:
         try:
-            els = driver.find_elements(By.XPATH, xpath)
-            if els:
-                text = els[0].text.strip() or els[0].get_attribute("innerHTML").strip()
-                # Amazon prices render as e.g. "₹1,24,900.00" or "₹99.00". The old
-                # `re.sub(r"[^\d]", "", text)` stripped every non-digit character
-                # INCLUDING the decimal point, so "99.00" became "9900" and
-                # "88.00" became "8800" — a silent 100x inflation on any price
-                # with paise/cents shown. Strip thousands-separator commas first,
-                # then take only the integer-rupee part before a decimal point.
-                no_commas = text.replace(",", "")
-                match = re.search(r"(\d+)(?:\.\d+)?", no_commas)
-                if match:
-                    price = int(match.group(1))
-                    if price > 10:   # sanity floor — reject stray single-digit noise, not real sub-100 prices
-                        return price
+            is_split_source = xpath.startswith("SPLIT::")
+            real_xpath = xpath[len("SPLIT::"):] if is_split_source else xpath
+            els = driver.find_elements(By.XPATH, real_xpath)
+            if not els:
+                continue
+
+            if is_split_source:
+                # Reconstruct rupees + paise explicitly from sub-spans instead
+                # of trusting the parent's concatenated .text (see comment above).
+                try:
+                    whole = els[0].find_element(By.CLASS_NAME, "a-price-whole").text
+                    whole = re.sub(r"[^\d]", "", whole.replace(",", ""))
+                    if whole:
+                        price = int(whole)
+                        if price > 10:
+                            return price
+                except:
+                    pass
+                continue
+
+            text = els[0].text.strip() or els[0].get_attribute("innerHTML").strip()
+            # Amazon prices render as e.g. "₹1,24,900.00" or "₹99.00". The old
+            # `re.sub(r"[^\d]", "", text)` stripped every non-digit character
+            # INCLUDING the decimal point, so "99.00" became "9900" and
+            # "88.00" became "8800" — a silent 100x inflation on any price
+            # with paise/cents shown. Strip thousands-separator commas first,
+            # then take only the integer-rupee part before a decimal point.
+            no_commas = text.replace(",", "")
+            match = re.search(r"(\d+)(?:\.\d+)?", no_commas)
+            if match:
+                price = int(match.group(1))
+                if price > 10:   # sanity floor — reject stray single-digit noise, not real sub-100 prices
+                    return price
         except:
             continue
     return None
