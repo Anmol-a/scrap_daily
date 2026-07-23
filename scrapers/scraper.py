@@ -355,6 +355,24 @@ def is_junk(name: str) -> bool:
             return True
     return False
 
+
+# Titles that are just "<something> <bare category noun>" with nothing else
+# (no model, size, spec, or descriptor) — the same shape as legacy-import
+# rows like "Lapster Laptop", "Sounce Laptop", or plain "Laptop" that turned
+# out to actually be a webcam cover, a camera lens, and a full Lenovo laptop
+# respectively. A real product title always has *something* after the noun;
+# this catches the case where it doesn't.
+GENERIC_NOUN_ONLY = re.compile(
+    r"^(\S+\s+)?(laptop|mobile|phone|charger|cable|mouse|watch|speaker|"
+    r"earphone|earphones|headphone|headphones|adapter|keyboard|tablet|"
+    r"camera|dongle)$",
+    re.IGNORECASE,
+)
+
+
+def is_generic_name_only(name: str) -> bool:
+    return bool(GENERIC_NOUN_ONLY.match(name.strip()))
+
 def is_known_brand(brand: str | None) -> bool:
     if not brand:
         return False
@@ -1023,6 +1041,10 @@ def scrape_new_product(driver, url: str) -> dict | None:
             return None
 
         if is_junk(title):
+            return None
+
+        if is_generic_name_only(title):
+            log.info(f"  Title too generic (brand + bare noun only) — skipped: {title!r}")
             return None
 
         # Brand
