@@ -417,6 +417,32 @@ def is_non_electronics(title: str, specs: dict | None = None, bullets: list | No
         text += " " + " ".join(str(x) for x in bullets).lower()
     return any(kw in text for kw in NON_ELECTRONICS_EXCLUDE)
 
+
+# Signal words indicating a genuine mechanical/quartz movement (i.e. NOT a
+# smartwatch) when found in the "Movement Type" spec field, versus the specs
+# a real smartwatch would have instead. Validated against 460 real DB rows —
+# titles alone (even "Bluetooth", "Digital") are unreliable for Casio/Titan/
+# Fastrack/Fossil, since they sell both analog and smart lines under similar
+# naming; the specs table's Movement Type vs. OS/connectivity fields is the
+# one signal that didn't produce false positives against real smartwatches
+# (Boat, Noise, Fire-Boltt, Apple, Garmin, etc. never carry a Movement Type).
+ANALOG_MOVEMENT_TERMS = ("quartz", "automatic", "mechanical", "manual")
+SMARTWATCH_SPEC_KEYS = ("operating system", "wearable computer type", "connectivity technology")
+
+
+def is_analog_watch(specs: dict | None) -> bool:
+    if not specs:
+        return False
+    lower_specs = {k.strip().lower(): str(v).lower() for k, v in specs.items()}
+    has_movement = any(
+        k == "movement type" and any(term in v for term in ANALOG_MOVEMENT_TERMS)
+        for k, v in lower_specs.items()
+    )
+    if not has_movement:
+        return False
+    has_smart_spec = any(k in SMARTWATCH_SPEC_KEYS for k in lower_specs)
+    return not has_smart_spec
+
 def clean_unicode(s: str) -> str:
     return s.replace("\u200f", "").replace("\u200e", "").replace("\u00a0", " ").strip()
 
@@ -1227,6 +1253,11 @@ def run_weekly(category: str | None = None, test: bool = False):
 
             if is_non_electronics(product["name"], product.get("specs"), product.get("bullets")):
                 log.info(f"  Non-electronics context detected — skipped: {product['name'][:60]}")
+                total_skipped += 1
+                continue
+
+            if cat_name == "smart_watches" and is_analog_watch(product.get("specs")):
+                log.info(f"  Analog/quartz movement, no smart specs — skipped: {product['name'][:60]}")
                 total_skipped += 1
                 continue
 
