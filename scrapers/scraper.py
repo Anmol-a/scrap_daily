@@ -745,6 +745,7 @@ def run_daily(test: bool = False, shard: int = 0, total_shards: int = 1):
     while True:
         res = supabase.from_("products").select("id, name, amazon_asin") \
             .not_.is_("amazon_asin", "null") \
+            .order("id") \
             .range(page * BATCH_SIZE, (page + 1) * BATCH_SIZE - 1).execute()
         batch = res.data or []
         all_products.extend(batch)
@@ -880,6 +881,7 @@ def run_specs(category: str | None = None, test: bool = False, shard: int = 0, t
     page = 0
     while True:
         res = supabase.from_("product_specs").select("product_id") \
+            .order("product_id") \
             .range(page * BATCH_SIZE, (page + 1) * BATCH_SIZE - 1).execute()
         batch = res.data or []
         for row in batch:
@@ -897,7 +899,7 @@ def run_specs(category: str | None = None, test: bool = False, shard: int = 0, t
             .not_.is_("amazon_asin", "null")
         if category:
             q = q.eq("category", category)
-        res = q.range(page * BATCH_SIZE, (page + 1) * BATCH_SIZE - 1).execute()
+        res = q.order("id").range(page * BATCH_SIZE, (page + 1) * BATCH_SIZE - 1).execute()
         batch = res.data or []
         all_products.extend(batch)
         if len(batch) < BATCH_SIZE:
@@ -1157,6 +1159,7 @@ def run_weekly(category: str | None = None, test: bool = False):
     page = 0
     while True:
         res = supabase.from_("products").select("amazon_asin, name") \
+            .order("id") \
             .range(page * BATCH_SIZE, (page + 1) * BATCH_SIZE - 1).execute()
         batch = res.data or []
         for row in batch:
